@@ -1,0 +1,62 @@
+name: データ分析勉強会2019
+output_dir: "docs"
+output:
+  html_document:
+    code_folding: none
+    css: style.css
+    df_print: paged
+    highlight: textmate
+    md_extensions: -ascii_identifiers
+    number_section: no
+#    theme: cerulean
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: no
+    lib_dir: site_libs
+    self_contained: no
+navbar:
+  title: DAWS2019
+  type: default
+  left: 
+    - text: "Rによる機械学習"
+      icon: fa-laptop
+      menu:
+        - text: "はじめに"
+          href: mlwr_C00.html
+        - text: "第3章 遅延学習"
+          href: mlwr_C03.html
+        - text: "第4章 確率的学習"
+        - text: "第5章 分割統治"
+        - text: "第6章 回帰方"
+        - text: "第7章 ブラックボックス的な手法"
+        - text: "第8章 相関ルール"
+        - text: "第9章 k平均クラスタリング"
+        - text: "第10章 モデルの性能の評価"
+        - text: "第11章 モデルの性能の改善"
+    - text: "UMich HS650"
+      icon: fa-info-circle
+      menu:
+        - text: "Introduction"
+        - text: "Lazy Learning"
+        - text: "Probabilistic Learning"
+        - text: "Divide and Conqure"
+        - text: "Forecasting Numeric Data"
+        - text: "Black Box Method"
+        - text: "Apriori Algorithm for Association Rule Learning"
+        - text: "k-Means Clustering"
+        - text: "Evaluating Model Performance"
+        - text: "Improving Model Performance"
+  right:
+    - icon: fa-github
+      menu:
+        - text: "GitHub Repository"
+          icon: fa-github
+          href: https://github.com/k-metrics/cabinet/
+        - text: "Project Cabinet blog"
+          icon: fa-rss-square
+          href: https://k-metrics.netlify.com/post/
+        - text: "---------------"
+        - text: "データ分析勉強会"
+          icon: fa-google
+          href: https://sites.google.com/site/kantometrics/home/

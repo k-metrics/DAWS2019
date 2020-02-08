@@ -1,0 +1,78 @@
+---
+# title: "はじめに"
+author-meta: "Sampo Suzuki"
+pagetitle: "DAWS2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+
+htmltools::tagList(rmarkdown::html_dependency_font_awesome())
+require(tidyverse)
+```
+
+　  
+　本サイトは書籍 [『Rによる機械学習』 <i class="fa fa-external-link"></i>](https://www.shoeisha.co.jp/book/detail/9784798145112){target="_blank" title="翔泳社"} （以降、テキストと表記）を用いた [2019年度データ分析勉強会 <i class="fa fa-external-link"></i>](https://sites.google.com/site/kantometrics/2019){target="_blank" title="Google Site"} の非公式まとめサイトです。各ページには上部のメニューからアクセスしてください。  
+
+　  
+
+## モチベーション
+　近年、統計分析ツールの進歩により統計分析手法の理論や背景・前提条件を知らずにツール（ソフトウェア）だけで分析が行われる場合が増えてきているそうです。乱暴にいうと統計学をいい加減に使っているわけですが、これは似非科学の作法で [ブラックボックス統計学（術）だとと批判 <i class="fa fa-external-link"></i>](https://id.fnshr.info/2012/08/10/kubomodel/){target="_blank" title="Colorless Green Ideas"} されています。  
+　  
+
+* **「ツールが使えれば中の処理は知らなくてもいい」**という考え方は危険
+    * とりあえず入手できたデータを計算すりゃなんとかなるだろうとか
+        * 例えば粒度の異なるデータを使って相関を分析してしまう
+    * 実際やってみるとなんとなく結果がでてしまう（Excelの回帰直線とか）
+* そのツール（手法）がどういう考え方に基づいているのかは知っておくべき
+    * [分析は統計的手法に依存 <i class="fa fa-external-link"></i>](http://hosho.ees.hokudai.ac.jp/~kubo/stat/2014/yz0/kubostat2014yz.pdf){target="_blank" title="PDF"} する
+        * 不適切な手法を選択したら不適切な結果になるのは明らか
+            * たちが悪いのは（知らずに）それを悪用するやつがいる
+            * 知識がないと間違い（悪用）に気づけない
+* **機械学習の考え方**と**その使い方**を学ぶことが目標
+
+　  
+　機械学習を学ぶ際にもブラックボックス統計学にならないために基本を学ぶことがとても大切です。  
+　  
+
+## 想定読者
+ 本サイトの想定読者は以下の通りです。
+
+* R言語に関する基本的な知識を有している
+* 機械学習を学ぼうとしている
+* 勉強会参加者
+
+　R言語の基本的な知識をお持ちでない初学者の方は最初に以下の書籍などでR言語に関する基本的な知識を習得することをおすゝめします。
+
+* [『RユーザのためのRStudio［実践］入門』 <i class="fa fa-external-link"></i>](https://gihyo.jp/book/2018/978-4-7741-9853-8){target="_blank" title="技術評論社"}
+* [『再現可能性のすゝめ ―RStudioによるデータ解析とレポート作成―』 <i class="fa fa-external-link"></i>](https://www.kyoritsu-pub.co.jp/bookdetail/9784320112438){target="_blank" title="共立出版"} 
+
+　  
+
+## About
+
+　  
+
+### Links
+ページ内のリンクは基本的に以下のようにしています。  
+
+* サイト内へのリンクは基本的に同一ウィンドウ（タブ）で開きます
+* サイト内へのリンクであっても参照文書などは意図的に別ウィンドウ（タブ）で開くようにしてあります
+* 別ウィンドウ（タブ）で開くサイト内へのリンクにはアイコン（<i class="fa fa-external-link-square"></i>）がついています
+* 外部サイトへのリンクは別ウィンドウ（タブ）で開きます
+* 外部サイトへのリンクにはアイコン（<i class="fa fa-external-link"></i>）がついています
+* 別ウィンドウ（タブ）で開くリンクには基本的にホバーテキスト（タイトル）が設定してあります
+* ホバーテキストが表示されるかどうかはご利用のブラウザに依存します
+* メニューのリンクは常に同一ウィンドウ（タブ）で開きます
+* ダウンロード用ファイルのリンクに対する動作はご利用のブラウザの設定に依存します
+
+　  
+
+### Builder
+　本サイトは [R Markdown Websites <i class="fa fa-external-link"></i>](https://rmarkdown.rstudio.com/rmarkdown_websites.htm){target="_blank" title="RStudio, PBC"} を利用して作成しています。  
+
+　  
+
+---
+<center> [CC BY-NC-SA 4.0 <i class="fa fa-external-link"></i>](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ja), Sampo Suzuki [`r format(Sys.time(), format = '%F(%Z)')`] </center>

@@ -1,0 +1,52 @@
+---
+title: "MLwR - はじめに"
+author-meta: "Sampo Suzuki"
+pagetitle: "DAWS2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+
+htmltools::tagList(rmarkdown::html_dependency_font_awesome())
+require(tidyverse)
+```
+
+　『Rによる機械学習』（原著『Machine Learning with R Second Edition』、以降、『MLw 2nd』と表記）は読者として以下を想定しています。
+
+* データを活用して**アクションを起こしたい**人
+* Rの知識は少しあるが**機械学習を全く知らない**人
+* 機械学習の知識は少しあるが**Rを使ったことはない**人
+
+　そのため第2章では R の基本について解説されていますが、本サイトでは省略します。また、『MLwR 2nd』におけるサンプルコードは R version 3.2.0 を使用していますが、本サイトでは `r version$version.string` を使用していますので出力結果などがサンプルコードとは異なる場合があります。  
+
+　  
+
+なお、本ページで利用しているデータならびにコードはサンプルファイルをベースにしています。また、【】で表記されているページ数は書籍『Rによる機械学習（第2刷）』に基づいています。
+
+## 用語の定義
+インスタンス
+フィーチャー
+
+
+## Sample Code and Data
+　『MLwR 2nd』のサンプルコードおよびサンプルデータは [GitHub <i class="fa fa-external-link"></i>](https://github.com/dataspelunking/MLwR){target="_blank" title=""} にて公開されています。  
+
+　  
+
+## Random Number Generation
+　R version 3.6.0 から乱数生成アルゴリズムが変更されています（詳細は [R News <i class="fa fa-external-link"></i>](https://cran.r-project.org/doc/manuals/r-release/NEWS.html){target="_blank" title="CRAN"} 参照方）。
+
+> The **default method for generating** from a discrete uniform distribution (used in sample(), for instance) **has been changed**. ... The previous method can be requested using RNGkind() or RNGversion() if necessary for reproduction of old results.
+
+　本サイトではサンプルコードなどのコードを実行するまえに以下のコードを実行して前方互換性を確保しています。
+```{r, eval=FALSE}
+if (getRversion() >= "3.6.0") {
+  RNGversion("3.2.0")   # テキストのサンプルコードが書かれたバージョン
+}
+```
+
+　  
+
+---
+<center> [CC BY-NC-SA 4.0 <i class="fa fa-external-link"></i>](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ja), Sampo Suzuki [`r format(Sys.time(), format = '%F(%Z)')`] </center>
