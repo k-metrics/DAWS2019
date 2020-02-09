@@ -34,10 +34,10 @@ knitr::include_graphics("https://scikit-learn.org/stable/_static/ml_map.png")
 
 　  
 
-# k近傍法とは
-　k近傍法（k-nearest neighbor algorithm, k-NN）は、分類したい任意のデータ（以降、インスタンス）の **近傍にあるk個のトレーニング用インスタンスを用いて分類** するアルゴリズムです。つまり近傍k個のトレーニング用インスタンスを用いた多数決による分類です。トレーニング用データに基づく学習の一種で遅延学習または怠惰学習（Lazy Learning）に分類されます。k近傍法を適用するにはインスタンスとインスタンスの2点間の距離（一般的には **ユークリッド距離（L2距離）**）を計算するためのデータならびに多数決のためのラベリングデータが必要です。  
+# $k$ 近傍法とは
+　k近傍法（k-nearest neighbor algorithm, k-NN）は、分類したい任意のデータ（以降、インスタンス）の **近傍にある $k$ 個のトレーニング用インスタンスを用いて分類** するアルゴリズムです。つまり分類した任意のインスタンスの近傍にある $k$ 個のトレーニング用インスタンスを用いた多数決による分類です。トレーニング用データに基づく学習の一種で遅延学習または怠惰学習（Lazy Learning）に分類されます。$k$ 近傍法を適用するにはインスタンスとインスタンスの2点間の距離（一般的には **ユークリッド距離（$L_2$ 距離）**）を計算するためのデータならびに多数決のためのラベリングデータが必要です。  
 　  
-　k近傍法の特徴は
+　$k$ 近傍法の特徴は  
 
 **長所**  
 
@@ -50,37 +50,35 @@ knitr::include_graphics("https://scikit-learn.org/stable/_static/ml_map.png")
 
 * モデルを作らないので結果の理解が難しい
     * アルゴリズム自体が単純なので説明しやすいという主張もある
-* kの値によって結果が変わることがある
+* $k$ の値によって結果が変わることがある
 * データが多いとトレーニング後の分類処理に時間がかかる
     * 距離を総当たり（Brute Force）で計算するため
-    * 高速に計算する方法が色々と研究・実装されている（`FNN`パッケージなど）
+    * 高速に計算する方法が色々と研究・実装されている（`FNN` パッケージなど）
 * 名義フィーチャー（変数）と欠損値に対する処理が必要
 
 　  
-　短所もありますが分類系の問題には概ね適用でき、レコメンド系（おすゝめ、サジェスト）では様々な業種で活用されているようです。アルゴリズムとしてのk近傍法の選択基準は [Choosing the right estimator <i class="fa fa-external-link"></i>](https://scikit-learn.org/stable/tutorial/machine_learning_map/index.html){target="_blank" title="scikit-learn algorithm cheat-sheet"} などで紹介されています。  
+　短所もありますが分類系の問題には概ね適用でき、レコメンド系（おすゝめ、サジェスト）では様々な業種で活用されているようです。アルゴリズムとしての $k$ 近傍法の選択基準は [Choosing the right estimator <i class="fa fa-external-link"></i>](https://scikit-learn.org/stable/tutorial/machine_learning_map/index.html){target="_blank" title="scikit-learn algorithm cheat-sheet"} などで紹介されています。  
 
 　  
 
 ## 距離による類似性の測定
-　実際にはどのような計算を行っているのでしょうか？前述のようにk近傍法はユークリッド距離（$L_2$距離）を用いてテスト用インスタンスの近傍にあるk個のトレーニング用インスタンスを探索し多数決によりどのラベルに属すべきかを計算します。ユークリッド距離はピラゴラスの公式（直角三角形の3辺の長さの関係は斜辺を$c$、残る2辺を$a, b$とした場合$c^2 = a^2 + b^2$が成り立つ）により求めることができます。  
-　$n$次元の直交空間における二つのインスタンス（P, Q）間のユークリッド距離（$L_2$距離）$d_2(P, Q)$は  
+　実際にはどのような計算を行っているのでしょうか？前述のように $k$ 近傍法はユークリッド距離（$L_2$ 距離）を用いてテスト用インスタンスの近傍にある $k$ 個のトレーニング用インスタンスを探索し多数決によりどのラベルに属すべきかを計算します。ユークリッド距離はピラゴラスの公式（直角三角形の3辺の長さの関係は斜辺を $c$ 、残る2辺を $a, b$ とした場合 $c^2 = a^2 + b^2$ が成り立つ）により求めることができます。  
+　$n$ 次元の直交空間における二つのインスタンス（P, Q）間のユークリッド距離（$L_2$ 距離） $d_2(P, Q)$ は  
 
 $$d_2(P, Q) = \sqrt{(P_1 - Q_1)^2 + (P_2 - Q_2)^2 + ... + (P_n - Q_n)^2} $$
 $$= \sqrt{\sum_{i=1}^{n}(P_i - Q_i)^2} = d_2(Q, P)$$
 
 　で与えられます。  
 
-<!-- ユークリッド距離を利用して近い順にk個の点を選び出します。選んだ点に対してk近傍密度推定量と呼ばれる密度を推定します。（k近傍密度推定法） -->
-<!-- http://ibis.t.u-tokyo.ac.jp/suzuki/lecture/2015/dataanalysis/L10.pdf -->
 　  
 
 ### 【参考】距離
-　距離にはユークリッド距離（$L_2$距離）の他にマンハッタン距離（$L_1$距離）と呼ばれる距離があります。その計算方法は以下の通りです。
+　距離にはユークリッド距離（$L_2$ 距離）の他にマンハッタン距離（$L_1$ 距離）と呼ばれる距離があります。その計算方法は以下の通りです。
 
 $$d_1(P, Q) = \sum_{i = 1}^{n}{|P_i - Q_1|} = d_1(Q, P)$$
 
-　ちなみにマンハッタン距離の名前はニューヨーク州のマンハッタン島のような升目状の道路を移動する際の距離に由来しているらしいです。他にも$n$次元における距離はマハラノビス距離、チェビシェフ距離、ミンコフスキー距離などがあります。  
-　ミンコフスキー距離（$L_n$）はユークリッド距離やマンハッタン距離を一般化した距離で以下の式により定義されます。$p = 1$の場合はマンハッタン距離、$p = 2$の場合はユークリッド距離になります。
+　ちなみにマンハッタン距離の名前はニューヨーク州のマンハッタン島のような升目状の道路を移動する際の距離に由来しているらしいです。他にも $n$ 次元における距離はマハラノビス距離、チェビシェフ距離、ミンコフスキー距離などがあります。  
+　ミンコフスキー距離（$L_n$）はユークリッド距離やマンハッタン距離を一般化した距離で以下の式により定義されます。 $p = 1$ の場合はマンハッタン距離、 $p = 2$ の場合はユークリッド距離になります。
 
 $$d_p(P, Q) = (\sum_{i = 1}^{n}|P_i - Q_i|^p)^{\frac{1}{p}}$$
 
@@ -88,69 +86,132 @@ $$d_p(P, Q) = (\sum_{i = 1}^{n}|P_i - Q_i|^p)^{\frac{1}{p}}$$
 
 ## 最適な $k$ の選択
 　$k$ 近傍法は前述のようにユークリッド距離を用いて近傍の $k$ 個を探索し、探索された $k$ 個のインスタンスを用いて分類しますので、探索する数（$k$）を変えると分類結果が変わる場合があります。$k$ を小さくし過ぎるとゲインが高くなり汎化性能が確保できなくなります。  
-　最適な $k$ の値を求めるには交差検証を用いるのが一般的です。交差検証を行うには`e1071`パッケージや`caret`パッケージを用います。具体的な計算方法は後述します。  
+　最適な $k$ の値を求めるには交差検証を用いるのが一般的です。交差検証を行うには `e1071` パッケージや `caret` パッケージを用います。具体的な計算方法は後述します。  
+
+　  
+
+# 必要な関連知識
+　$k$ 近傍法を利用するにあたり知っておくべき関連知識には以下のようなものがあります。  
+　  
+
+* データの正規化
+    * 最小最大正規化
+    * $Z$ スコア正規化
+* ダミーコーディング
 
 　  
 
 ## データの正規化
-　$k$ 近傍法では各変量を持ちたユークリッド距離で近傍を探索しますので、各変量は適切な範囲にある必要があります。例えば、 `x, y, z` という三つの変量をもつ三つのインスタンス間のユークリッド距離を求めてみます。二つのデータセットの違いは変量 `y` が取る値の範囲が一桁異なっている点です。
-```{r}
-data.frame(x = c(1, 2, 3), y = c(4, 5, 6), z = c(7, 8, 9),
-           rowname = c("A", "B", "C")) %>% 
-  tibble::column_to_rownames()
-
-data.frame(x = c(1, 2, 3), y = c(40, 50, 60), z = c(7, 8, 9),
-           rowname = c("A", "B", "C")) %>% 
-  tibble::column_to_rownames()
-```
-
-　ユークリッド距離は `dist` 関数で求められますが、引数が `matrix` 形式なのでデータフレーム型のデータを渡す場合は注意してください。
-```{r}
+　$k$ 近傍法では各変量を持ちたユークリッド距離を用いて近傍インスタンスを探索しますので、各変量は適切な範囲にある必要があります。例えば、 `x, y, z` という三つの変量をもつ三つのインスタンス間のユークリッド距離を求めてみます。二つのデータセットの違いは変量 `y` が取る値の範囲が一桁異なっている点です。
+```{r, echo=FALSE}
 data.frame(x = c(1, 2, 3), y = c(4, 5, 6), z = c(7, 8, 9),
            rowname = c("A", "B", "C")) %>% 
   tibble::column_to_rownames() %>% 
-  dist(diag = TRUE)
+  knitr::kable(caption = "Sample A")
 
 data.frame(x = c(1, 2, 3), y = c(40, 50, 60), z = c(7, 8, 9),
            rowname = c("A", "B", "C")) %>% 
   tibble::column_to_rownames() %>% 
-  dist(diag = TRUE)
+  knitr::kable(caption = "Sample B")
 ```
 
-　このように変量が取る範囲が異なるとユークリッド距離が大きく代わり探索対象となるインスタンスが変わってしまします。そこで変量が取る範囲による影響を最小限するための正規化という手法を用います。そこで、特定の変量の影響を少なくするための方法が正規化です。　  
+　R でユークリッド距離を求めるには `dist` 関数を利用しますが、引数が `matrix` 形式な点に注意してください。
+```{r, echo=FALSE}
+data.frame(x = c(1, 2, 3), y = c(4, 5, 6), z = c(7, 8, 9),
+           rowname = c("A", "B", "C")) %>% 
+  tibble::column_to_rownames() %>% 
+  dist(diag = TRUE) %>% as.matrix() %>% 
+  knitr::kable(caption = "Euclidean distance of Sample A")
+
+data.frame(x = c(1, 2, 3), y = c(40, 50, 60), z = c(7, 8, 9),
+           rowname = c("A", "B", "C")) %>% 
+  tibble::column_to_rownames() %>% 
+  dist(diag = TRUE) %>% as.matrix() %>% 
+  knitr::kable(caption = "Euclidean distance of Sample B")
+```
+
+　このように `y` の影響によりユークリッド距離が大きく異なってくることが分かります。変量が取る範囲が異なるとユークリッド距離が大きく代わり探索対象となるインスタンスが変わってしまします。そこで変量が取る範囲による影響を最小限するために正規化という手法を用います。正規化は無次元量化ですから変量の単位に囚われることなくユークリッド距離を計算できるというメリットもあります。　  
 
 　  
 
 ### 最小最大正規化
-　最小最大正規化（min-max normalization）は変量の取る値が $0$ から $1$ の間になるようにする正規化手法です。 R では既存の関数がありませんので定義します。
+　最小最大正規化（min-max normalization）は変量の取る値が $0$ から $1$ の間になるようにする正規化手法です。 R では既存の関数がありませんので定義する必要があります。
 
 $$x_{new} = \frac{x - min(x)}{max(x) - min(x)} = \frac{x - min(x)}{diff(range(x))}$$
-
-　`normalize` という関数名で最小最大正規化関数を以下のように定義します。なお、引数チェックなどは省略します。
+　  
+　`normalize` という関数名で最小最大正規化関数を以下のように定義します。なお、引数チェックなどは省略します。  
 ```{r}
 normalize <- function(x) {
   return((x - min(x)) / diff(range(x)))
 }
 ```
-　`range` 関数はベクトルの最小値と最大値を返す関数で、 `diff` 関数は二つの値の差を返す関数です。
+　  
+　`range` 関数はベクトルの最小値と最大値を返す関数で `diff` 関数は二つの値の差を返す関数です。さきほどの「Sample B」に対して最小最大正規化を適用しユークリッド距離を求めてみます。
+```{r, echo=FALSE}
+data.frame(x = c(1, 2, 3), y = c(40, 50, 60), z = c(7, 8, 9),
+           rowname = c("A", "B", "C")) %>% 
+  tibble::column_to_rownames() %>% 
+  knitr::kable(caption = "Sample B")
+```
+
+```{r, echo=FALSE}
+data.frame(x = c(1, 2, 3), y = c(40, 50, 60), z = c(7, 8, 9),
+           rowname = c("A", "B", "C")) %>% 
+  dplyr::mutate_if(is.numeric, .funs = normalize) %>% 
+  tibble::column_to_rownames() %>% 
+  knitr::kable(caption = "Normalized Sample B")
+```
+
+```{r, echo=FALSE}
+data.frame(x = c(1, 2, 3), y = c(40, 50, 60), z = c(7, 8, 9),
+           rowname = c("A", "B", "C")) %>% 
+  dplyr::mutate_if(is.numeric, .funs = normalize) %>% 
+  tibble::column_to_rownames() %>% 
+  dist(diag = TRUE) %>% as.matrix() %>% 
+  knitr::kable(caption = "Euclidean distance of Normalized Sample B")
+```
+
 　  
 
 ### $Z$ スコア正規化
-　$Z$ スコア正規化（Z-score normalization）は平均値が $0$ 、分散が $1$ の標準正規分布にしたがような正規化手法です。 R では `scale` 関数として用意されていますので定義をする必要はありません。
+　$Z$ スコア正規化（Z-score normalization）は平均値が $0$ 、分散が $1$ の標準正規分布にしたがような正規化手法です。 R では `scale` 関数として用意されていますので定義をする必要はありません。ただし、`scale` 関数の返り値は属性付きマトリクス型である点に点に注意してください。  
 
 $$x_{new} = \frac{x - \mu_{x}}{\sigma_x} = \frac{x - mean(x)}{sd(x)} = scale(x)$$
 
- なお、 `scale` 関数の返り値は属性付きマトリクス型である点に点に注意してください。
-```{r}
-scale(c(1:5)) %>% str()
+　  
+　さきほどの「Sample B」に対して $Z$ スコア正規化を適用しユークリッド距離を求めてみます。
+```{r, echo=FALSE}
+data.frame(x = c(1, 2, 3), y = c(40, 50, 60), z = c(7, 8, 9),
+           rowname = c("A", "B", "C")) %>% 
+  tibble::column_to_rownames() %>% 
+  knitr::kable(caption = "Sample B")
 ```
 
+```{r, echo=FALSE}
+data.frame(x = c(1, 2, 3), y = c(40, 50, 60), z = c(7, 8, 9),
+           rowname = c("A", "B", "C")) %>% 
+  dplyr::mutate_if(is.numeric, .funs = scale) %>% 
+  tibble::column_to_rownames() %>% 
+  knitr::kable(caption = "Z score Normalized Sample B")
+```
 
-### ダミーコーディング
-　数値データは最小最大正規化や $Z$ スコア正規化により適切な値の範囲に変換できますが、カテゴリカルデータ（名義データ）の場合はダミーコーディングを行います。例えば、よくある性別データは以下のようになります。  
+```{r, echo=FALSE}
+data.frame(x = c(1, 2, 3), y = c(40, 50, 60), z = c(7, 8, 9),
+           rowname = c("A", "B", "C")) %>% 
+  dplyr::mutate_if(is.numeric, .funs = scale) %>% 
+  tibble::column_to_rownames() %>% 
+  dist(diag = TRUE) %>% as.matrix() %>% 
+  knitr::kable(caption = "Euclidean distance of Z score Normalized Sample B")
+```
+
+　  
+
+## ダミーコーディング
+　数値データは最小最大正規化や $Z$ スコア正規化により適切な値の範囲に変換できますが、カテゴリカルデータ（名義データ）の場合はダミーコーディングを行います。例えば、よくある名義尺度の性別データ（`sex`）は以下のようにダミーコーディングにより数値データ（`mail`）に変換することができます。  
 ```{r}
 data.frame(sex = c("M", "F", "M", "F", "M", "M", "M", "F")) %>% 
-  dplyr::mutate(male = dplyr::if_else(sex == "M", 1, 0)) 
+  dplyr::mutate(male = dplyr::if_else(sex == "M", 1, 0)) %>% 
+  knitr::kable(caption = "Dummy Coding")
 ```
 
 　三つのカテゴリがあるカテゴリカルデータに対するダミーコーディングは以下のようになります。
@@ -363,11 +424,7 @@ gmodels::CrossTable(x = wbcd_test_labels, y = wbcd_test_pred,
 ### 変換 - Zスコア標準化 【P76】
 汎化性能を確保するためにZスコア正規化を使った場合を確認しておきます。Zスコア正規化には前述のように`scale`関数を用いますが、`scale`関数の返り値は"atomic vector"にならないので、`purrr::map`関数を用いて`scale`関数を適用します。
 ```{r}
-wbcd_nz <- wbcd %>% dplyr::select(-id) %>% 
-  dplyr::mutate(diagnosis = forcats::fct_inorder(diagnosis)) %>% 
-  dplyr::mutate(diagnosis = forcats::fct_recode(diagnosis,
-                                                Malignant = "M",
-                                                Benign = "B")) %>% 
+wbcd_nz <- wbcd %>% 
   purrr::map_if(is.numeric, scale) %>% as.data.frame()
   # dplyr::mutate_if(is.numeric, scale, center = FALSE, scale = FALSE)
 
