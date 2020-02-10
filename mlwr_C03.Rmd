@@ -207,22 +207,26 @@ data.frame(x = c(1, 2, 3), y = c(40, 50, 60), z = c(7, 8, 9),
 　  
 
 ## ダミーコーディング
-　数値データは最小最大正規化や $Z$ スコア正規化により適切な値の範囲に変換できますが、カテゴリカルデータ（名義データ）の場合はダミーコーディングを行います。例えば、よくある名義尺度の性別データ（`sex`）は以下のようにダミーコーディングにより数値データ（`mail`）に変換することができます。  
+　数値データは最小最大正規化や $Z$ スコア正規化により適切な値の範囲に変換できますが、カテゴリカルデータ（名義尺度）の場合はダミーコーディング（ダミー変数化）により各水準を数値化します。例えば、よくある性別データ（`sex`）はダミーコーディングにより以下のように数値データ（`mail`）に置き換えることができます。  
 ```{r}
 data.frame(sex = c("M", "F", "M", "F", "M", "M", "M", "F")) %>% 
+  # 男性（"M"）ならば 1 異なるなら 0 を割り当てる
   dplyr::mutate(male = dplyr::if_else(sex == "M", 1, 0)) %>% 
   knitr::kable(caption = "Dummy Coding")
 ```
 
-　三つのカテゴリがあるカテゴリカルデータに対するダミーコーディングは以下のようになります。
+　この場合、数値の大きさに意味はありませんので任意の数値を割り当てることができますが最小最大正規化と同様の値を割り当てることをおすゝめします。  
+　  
+　続いては三水準のカテゴリカルデータに対するダミーコーディング例です。三水準を二変数の組み合わせで表現している点に着目してください。
 ```{r}
 data.frame(x = c("Hot", "Hot", "Cold", "Hot", "Medium", "Hot", "Cold", "Cold")) %>% 
   dplyr::mutate(hot = dplyr::if_else(x == "Hot", 1, 0),
                 cold = dplyr::if_else(x == "Cold", 1, 0))
 ```
 
-　このようにダミーコーディングを使うとカテゴリ数が $n$ のカテゴリ変数は $n - 1$ 個の間隔尺度の変量（インジケータ）になり $k$近傍法で扱うことができるようになります。  
-　また、カテゴリ間の差が等間隔である場合は数値へ落とし込むこともできます。例えば、等間隔であるサイズの場合は以下の様に三つの値にしてから最小最大正規化します。
+　このようにダミーコーディングを使うと水準数が $n$ のカテゴリ変数は $n - 1$ 個の数値変量（インジケータ）に落とし込むことができます。  
+　  
+　カテゴリ変数の水準間の大小が決まっており等間隔である場合は以下のように水準を間隔尺度に変換してから正規化処理して直接数値へ落とし込む方法もあります。
 ```{r}
 data.frame(size = c("Large", "Large", "Small", "Large", "Medium",
                     "Large", "Small", "Small")) %>% 
@@ -231,22 +235,33 @@ data.frame(size = c("Large", "Large", "Small", "Large", "Medium",
                   normalize(.))
 ```
 
+## One-Hot エンコーディング
+　ダミーコーディングと似たエンコーディングに One-Hot エンコーディングというものもあります。One-Hot エンコーディングはインスタンスが属す水準に対してフラグ（$1$）を立てるものです。例えば、前述の性別を One-Hot エンコーディングすると以下のようになります。
+```{r}
+data.frame(sex = c("M", "F", "M", "F", "M", "M", "M", "F")) %>% 
+  # 男性（"M"）ならば 1 異なるなら 0 を割り当てる
+  dplyr::mutate(male = dplyr::if_else(sex == "M", 1, 0),
+                female = dplyr::if_else(sex == "F", 1, 0)) %>% 
+  knitr::kable(caption = "One-Hot Encoding")
+```
+　ダミーコーディングとの一番の違いは $n$ 個の水準が $n$ 個の数値変量になる点です。  
+
+　その他、 Effect コーディングと呼ばれる手法もありますが、ここでは説明を省略しますので、ご自身で調べてみてください。  
+
 　  
 
 # 実例
-
-ステップ1 | データの収集
-ステップ2 | データの研究と準備
-
+　『MLwR 2nd』で利用しているサンプルデータのオリジナルは [UC Irvineの機械学習リポジトリ <i class="fa fa-external-link"></i>](http://archive.ics.uci.edu/ml){target="_blank" title="UC Irvine Machine Learning Repository"} にある [ウィスコンシン州のがん検診データ <i class="fa fa-external-link"></i>](http://archive.ics.uci.edu/ml/datasets/breast+cancer+wisconsin+(diagnostic)){target="_blank" title="Breast Cancer Wisconsin (Diagnostic) Data Set"} です。各変量が何を意味するかは『MLwR 2nd』やオリジナルデータのリポジトリで確認してください。
 
 　  
 
 ## データの収集
-　『MLwR 2nd』で利用しているサンプルデータのオリジナルは [UC Irvineの機械学習リポジトリ <i class="fa fa-external-link"></i>](http://archive.ics.uci.edu/ml){target="_blank" title="UC Irvine Machine Learning Repository"} にある [ウィスコンシン州のがん検診データ <i class="fa fa-external-link"></i>](http://archive.ics.uci.edu/ml/datasets/breast+cancer+wisconsin+(diagnostic)){target="_blank" title="Breast Cancer Wisconsin (Diagnostic) Data Set"} です。各変量が何を意味するかは『MLwR 2nd』で確認してください。
+　データは [GitHub <i class="fa fa-external-link"></i>](https://github.com/dataspelunking/MLwR){target="_blank" title=""} にある『MLwR 2nd』のサンプルデータを使用します。  
 ```{r, echo=FALSE}
 wbcd <- read.csv(wbcd_data, stringsAsFactors = FALSE)
+wbcd_org <- wbcd
 ```
-　データは `wbcd` というデータフレーム型の変数に格納してあります。診断結果を表す `diagnosis` は文字データとして読み込んであります。
+　ここではデータをサンプルコードと同様に `wbcd` というデータフレーム型の変数に格納してあります。また、診断結果を表す `diagnosis` 変数もサンプルコードと同様に文字データとして読み込んであります。具体的な読み込み方はサンプルコードで確認してください。
 ```{r}
 wbcd
 ```
@@ -254,19 +269,36 @@ wbcd
 　  
 
 ## データの研究と準備
-　分析の前に対象データがどのような傾向を持っているのかを把握しておきます。データの要約には `skimr` パッケージが便利です。
+　分析の前に対象データがどのような傾向を持っているのかを把握しておきます。データの要約には `skimr` パッケージが便利です。 `skimr` パッケージがインストールされていない場合は以下のようにパッケージをインストールし読みこんでください。
+```{r, eval=FALSE}
+install.packages("skimr")
+library(skimr)
+```
+
+　`skimr` パッケージを使って対象データを要約すると `r length(wbcd)` 個の変量があり、インスタンス数は `r nrow(wbcd)` 個、欠損値（`n_missing`）はないことが確認できます。また、各変量の取る値の範囲は様々ですので正規化処理が必要なことが分かります。
 ```{r}
 skimr::skim(wbcd)
 ```
 
-　対象データには `r length(wbcd)` 個の変量があり、インスタンスは `r nrow(wbcd)` 個、欠損値（`n_missing`）はないことが確認できます。各変量の取る値の範囲は様々ですので正規化処理が必要なことが分かります。  
-　
+　以降の処理では `tidyverse` パッケージを利用しますので読みこんでおきます。
+```{r, eval=FALSE}
+library(tidyverse)
+```
+
+　  
 
 ### 前処理
-　変量 `id` は受診者の識別番号ですので削除しておきます。診断結果の `diagnosis` 因子型に変換しておきます。因子型変数を扱うために `forcats` パッケージを利用します。
+　変量 `id` は受診者の識別番号ですので $k$ 近傍法での距離計算の対象にはなりませんので削除しておきます。
 ```{r}
 wbcd <- wbcd %>% 
-  dplyr::select(-id) %>% 
+  dplyr::select(-id)
+wbcd
+```
+
+　  
+　サンプルコードと同様に診断結果の `diagnosis` の水準名を変更し因子型変数に変換します。因子型変数を扱うには `tidyverse` ファミリーである `forcats` パッケージが便利です。 `forcats` パッケージは `tidyverse` パッケージを読み込んだ際に一緒に読み込まれています。
+```{r, include=FALSE, eval=FALSE}
+wbcd <- wbcd %>% 
   dplyr::mutate(diagnosis = forcats::fct_inorder(diagnosis)) %>% 
   dplyr::mutate(diagnosis = forcats::fct_recode(diagnosis,
                                                 Malignant = "M",
@@ -274,68 +306,94 @@ wbcd <- wbcd %>%
 wbcd
 ```
 
+```{r}
+wbcd <- wbcd %>% 
+  dplyr::mutate(diagnosis = forcats::fct_inorder(diagnosis)) %>% 
+  dplyr::mutate(diagnosis = forcats::fct_recode(diagnosis,
+                                                `悪性` = "M",
+                                                `良性` = "B"))
+wbcd
+```
+
+　$2$ 行目の`forcats::fct_inorder` 関数は指定した変量に含まれる水準（`levels`）を出現順に並べ変える関数です。  
+　$3$ 行目の `forcats::fct_recode` 関数は水準名を変更する関数です。 `B` は良性、`M` は悪性の意味ですので、分かりやすく置き換えておきます。  
+　  
+　以上で前処理は終了です。
 　  
 
 ### 正規化
-　次に全ての数値変量に対して最小最大正規化を適用します。
+　次に各変量が取る値の範囲がかなり異なっていますので、全ての数値変量に対して最小最大正規化を適用し、その結果を新たなデータフレーム型変数 `wbcd_n` に格納します。
 ```{r}
 wbcd_n <- wbcd %>%  
   dplyr::mutate_if(is.numeric, normalize)
+wbcd_n
 ```
 
-　正規化後に数値変量がどのような範囲になっているか確認しておきます。
+　  
+　念のために正規化後に数値変量がどのような範囲になっているか確認しておきます。
 ```{r}
 wbcd_n %>% 
   dplyr::select_if(is.numeric) %>% 
   skimr::skim()
 ```
 
-　最小最大正規化後は全ての数値変量が $0$ ～ $1$ の範囲のデータになっていることが分かります。また、各変量は右に歪んだ分布であることもわかります。  
+　最小最大正規化後は全ての数値変量が $0$ ～ $1$ の範囲のデータになっていることが分かります。また、各変量は概ね右に歪んだ分布であることもわかります。  
 
 　  
 
 ### データの作成
-　前処理が終わりましたのでトレーニング用インスタンスとテスト用インスタンスを作成します。『MLwR 2nd』では後ろから $100$ 個のインスタンスをテスト用、残りをトレーニング用データとして分けています。
-　機械学習では、このようにデータを二分割してトレーニングとテストを行う方法を **ホールドアウト法（またはテストサンプル法）** といいます。なお、ホールドアウト法は交差検証とは見なされませんので注意してください。  
+　前処理が終わりましたのでトレーニング用インスタンスとテスト用インスタンスを作成します。『MLwR 2nd』では最初の $469$ インスタンスをトレーニング用、残りの $100$ インスタンスをテスト用として分けています。機械学習では、このようにデータを二分割してトレーニングとテストを行う方法を **ホールドアウト法（またはテストサンプル法）** といいます。  
+
 　  
 
 #### トレーニング用データ
+　トレーニング用データとラベルを作成します。
 ```{r}
-# トレーニング用データ
-(wbcd_train <- wbcd_n %>% 
+wbcd_train <- wbcd_n %>% 
+  tibble::rowid_to_column("No") %>%     # フィルタリングするための行番号を変量に
+  dplyr::filter(No <= 469) %>%          # 最初の469インスタンスを行番号で抽出
+  dplyr::select(-diagnosis) %>%         # ラベル変量を削除
+  tibble::column_to_rownames("No")      # 行番号の変量をカラム名に
+wbcd_train
+```
+
+　トレーニング用ラベルには `diagnosis` 変量を用いますが、コードの都合上データフレーム型変数でなくベクトル変数で保持する必要があります。
+```{r}
+train_labels <- wbcd_n %>% 
   tibble::rowid_to_column("No") %>% 
-  dplyr::filter(No <= 469) %>%
-  dplyr::select(-diagnosis) %>% 
-  tibble::column_to_rownames("No"))
+  dplyr::filter(No <= 469) %>% 
+  dplyr::select(diagnosis) %>% 
+  .$diagnosis                           # ラベル用の変量のみを取り出す
+train_labels
 ```
 
 　  
 
 #### テスト用データ
+　トレーニング用と同様にテスト用データとラベルを作成します。
 ```{r}
-# テスト用データ
-(wbcd_test <- wbcd_n %>% 
+wbcd_test <- wbcd_n %>% 
+  tibble::rowid_to_column("No") %>% 
+  dplyr::filter(No > 469) %>%         # フィルタリング条件をひっくり返すだけ
+  dplyr::select(-diagnosis) %>% 
+  tibble::column_to_rownames("No")
+wbcd_test
+```
+
+```{r}
+test_labels <- wbcd_n %>% 
   tibble::rowid_to_column("No") %>% 
   dplyr::filter(No > 469) %>% 
-  dplyr::select(-diagnosis) %>% 
-  tibble::column_to_rownames("No"))
+  dplyr::select(diagnosis) %>% 
+  .$diagnosis
+test_labels
 ```
 
 　  
 
-#### dplyr::top_n関数を使う場合 【テキスト外】
-`dplyr::top_n`関数は単純に行番号でフィルタする関数でなく、対象データの最後のフィーチャーの値を用いてランキング（オーダリング）したデータから指定数だけ上位または下位からサンプリングする関数です。  
-`dplyr::top_n`関数を用いて行番号順にサンプリングしたい場合は以下のように行番号をフィーチャーにして明示的に指定してください。
-```{r}
-wbcd_n %>% 
-  tibble::rowid_to_column("No") %>% 
-  dplyr::top_n(n = 100, wt = No)
-```
-
-　  
-
-##### ランダムサンプリングによるデータの作成 【テキスト外】
-対象データのIDを見る限りランダムサンプリングしたデータのようなのでトレーニングデータ、テスト用を作成するのに更にランダムサンプリングする必要はなさそうですが、ランダムサンプリングをしてトレーニング用、テスト用データを作成する場合には`rsample`パッケージが便利です。
+##### ランダムサンプリングによるデータの作成
+　『MLwR 2nd』では
+　対象データのIDを見る限りランダムサンプリングしたデータのようなのでトレーニングデータ、テスト用を作成するのに更にランダムサンプリングする必要はなさそうですが、ランダムサンプリングをしてトレーニング用、テスト用データを作成する場合には`rsample`パッケージが便利です。
 ```{r}
 # 指定した比率にしたがってランダムに分割データを作るので実行は一回のみなので
 # トレーニング用、テスト用に二回実行してはいけない。結果は`.$in_id`に格納される
@@ -374,25 +432,25 @@ rm(train, test)
 
 #### ラベルの作成 【P72】
 `class::knn`関数を使う場合、トレーニング用、テスト用のラベルは必ず"atomic vector"でなければなりません。
-```{r}
-# トレーニング用データのラベル
-wbcd_train_labels <- wbcd_n %>% 
-  tibble::rowid_to_column("No") %>% 
-  dplyr::filter(No <= 469) %>% 
-  dplyr::select(diagnosis)
-
-# テスト用データのラベル（性能評価する場合にのみラベルが必要）
-wbcd_test_labels <- wbcd_n %>% 
-  tibble::rowid_to_column("No") %>% 
-  dplyr::filter(No > 469) %>% 
-  dplyr::select(diagnosis)
-
-# ラベルはベクトル変数でなければならない
-wbcd_train_labels <- wbcd_train_labels$diagnosis
-wbcd_test_labels <- wbcd_test_labels$diagnosis
-
-wbcd_train_labels
-wbcd_test_labels
+```{r, eval=FALSE}
+# # トレーニング用データのラベル
+# wbcd_train_labels <- wbcd_n %>% 
+#   tibble::rowid_to_column("No") %>% 
+#   dplyr::filter(No <= 469) %>% 
+#   dplyr::select(diagnosis)
+# 
+# # テスト用データのラベル（性能評価する場合にのみラベルが必要）
+# wbcd_test_labels <- wbcd_n %>% 
+#   tibble::rowid_to_column("No") %>% 
+#   dplyr::filter(No > 469) %>% 
+#   dplyr::select(diagnosis)
+# 
+# # ラベルはベクトル変数でなければならない
+# wbcd_train_labels <- wbcd_train_labels$diagnosis
+# wbcd_test_labels <- wbcd_test_labels$diagnosis
+# 
+# wbcd_train_labels
+# wbcd_test_labels
 ```
 
 　  
