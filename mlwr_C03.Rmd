@@ -252,6 +252,17 @@ data.frame(sex = c("M", "F", "M", "F", "M", "M", "M", "F")) %>%
 
 # 実例
 　『MLwR 2nd』で利用しているサンプルデータのオリジナルは [UC Irvineの機械学習リポジトリ <i class="fa fa-external-link"></i>](http://archive.ics.uci.edu/ml){target="_blank" title="UC Irvine Machine Learning Repository"} にある [ウィスコンシン州のがん検診データ <i class="fa fa-external-link"></i>](http://archive.ics.uci.edu/ml/datasets/breast+cancer+wisconsin+(diagnostic)){target="_blank" title="Breast Cancer Wisconsin (Diagnostic) Data Set"} です。各変量が何を意味するかは『MLwR 2nd』やオリジナルデータのリポジトリで確認してください。
+　  
+　以降に掲載しているコードは『MLwR 2nd』のサンプルコードと異なり以下のパッケージを利用しています。
+
+Package      | Version   | Descriptions
+-------------|-----------|---------------------------------------------------
+class        | `r packageVersion('class')` | Functions for Classification
+caret        | `r packageVersion('caret')` | Classification and Regression Training
+e1071        | `r packageVersion('e1071')` | Misc Functions of the Department of Statistics, Probability Theory Group (Formerly: E1071), TU Wien
+skimr        | `r packageVersion('skimr')` | Compact and Flexible Summaries of Data
+tidymodels   | `r packageVersion('tidymodels')` | Easily Install and Load the 'Tidymodels' Packages
+tidyverse    | `r packageVersion('tidyverse')` | Easily Install and Load the 'Tidyverse'
 
 　  
 
@@ -269,13 +280,7 @@ wbcd
 　  
 
 ## データの研究と準備
-　分析の前に対象データがどのような傾向を持っているのかを把握しておきます。データの要約には `skimr` パッケージが便利です。 `skimr` パッケージがインストールされていない場合は以下のようにパッケージをインストールし読みこんでください。
-```{r, eval=FALSE}
-install.packages("skimr")
-library(skimr)
-```
-
-　`skimr` パッケージを使って対象データを要約すると `r length(wbcd)` 個の変量があり、インスタンス数は `r nrow(wbcd)` 個、欠損値（`n_missing`）はないことが確認できます。また、各変量の取る値の範囲は様々ですので正規化処理が必要なことが分かります。
+　分析の前に対象データがどのような傾向を持っているのかを把握しておきます。`skimr` パッケージを使って対象データを要約すると `r length(wbcd)` 個の変量があり、インスタンス数は `r nrow(wbcd)` 個、欠損値（`n_missing`）はないことが確認できます。また、各変量の取る値の範囲は様々ですので正規化処理が必要なことが分かります。
 ```{r}
 skimr::skim(wbcd)
 ```
@@ -298,12 +303,12 @@ wbcd
 　  
 　サンプルコードと同様に診断結果の `diagnosis` の水準名を変更し因子型変数に変換します。因子型変数を扱うには `tidyverse` ファミリーである `forcats` パッケージが便利です。 `forcats` パッケージは `tidyverse` パッケージを読み込んだ際に一緒に読み込まれています。
 ```{r, include=FALSE, eval=FALSE}
-wbcd <- wbcd %>% 
-  dplyr::mutate(diagnosis = forcats::fct_inorder(diagnosis)) %>% 
-  dplyr::mutate(diagnosis = forcats::fct_recode(diagnosis,
-                                                Malignant = "M",
-                                                Benign = "B"))
-wbcd
+# wbcd <- wbcd %>% 
+#   dplyr::mutate(diagnosis = forcats::fct_inorder(diagnosis)) %>% 
+#   dplyr::mutate(diagnosis = forcats::fct_recode(diagnosis,
+#                                                 Malignant = "M",
+#                                                 Benign = "B"))
+# wbcd
 ```
 
 ```{r}
@@ -374,7 +379,7 @@ train_labels
 ```{r}
 wbcd_test <- wbcd_n %>% 
   tibble::rowid_to_column("No") %>% 
-  dplyr::filter(No > 469) %>%         # フィルタリング条件をひっくり返すだけ
+  dplyr::filter(No > 469) %>%           # フィルタリング条件をひっくり返す
   dplyr::select(-diagnosis) %>% 
   tibble::column_to_rownames("No")
 wbcd_test
@@ -392,90 +397,50 @@ test_labels
 　  
 
 ##### ランダムサンプリングによるデータの作成
-　『MLwR 2nd』では
-　対象データのIDを見る限りランダムサンプリングしたデータのようなのでトレーニングデータ、テスト用を作成するのに更にランダムサンプリングする必要はなさそうですが、ランダムサンプリングをしてトレーニング用、テスト用データを作成する場合には`rsample`パッケージが便利です。
+　『MLwR 2nd』ではインスタンスの並び順でトレーニング用インスタンスとテスト用インスタンスに分割しているますが、インスタンスの並び順によってはトレーニング用インスタンスが偏る可能性を否定できません。インスタンスを分割する場合には一般的にランダムサンプリングを用います。R でランダムサンプリングを用いてインスタンスを分割する場合、機械学習用パッケージと言える `tidymodels` パッケージを利用します。  
+　`tidymodels` パッケージに含まれる `rsample` パッケージの `initial_split` 関数を用います。 `initial_split` 関数は指定した分割比率にしたがってランダムに分割データを作成します。
 ```{r}
-# 指定した比率にしたがってランダムに分割データを作るので実行は一回のみなので
-# トレーニング用、テスト用に二回実行してはいけない。結果は`.$in_id`に格納される
 split <- wbcd_n %>% 
   rsample::initial_split(prop = 1 - 100/569)
-
+```
+　分割結果はリスト型変数に格納されます。トレーニング用インスタンスに対するインデックスがリスト型変数内の `$in_id` に格納されますので、そのインデックスを用いて `rsample::training` 関数と `rsample::testing` 関数によりトレーニング用インスタンスとテスト用インスタンスを作成します。
+```{r}
 split %>% 
-  rsample::training()   # .$in_idに該当するデータを取り出す
+  rsample::training()                   # .$in_idに該当するデータを取り出す
 split %>% 
-  rsample::testing()    # .$in_idに該当しないデータを取り出す
+  rsample::testing()                    # .$in_idに該当しないデータを取り出す
 ```
 
-　  
-同様の処理は`dplyr`パッケージだけでも実現可能です。こちらは比率だけでなく個数でも指定可能です。
+　同様の処理は `dplyr` パッケージでも実現可能です。
 ```{r, message=FALSE}
-(train <- wbcd_n %>% 
-  dplyr::sample_n(469))      # 比率の場合は`dplyr::sample_frac`関数を用いる
-
-(test <- wbcd_n %>% 
-  dplyr::anti_join(train))   # `dplyr::anti_join`でトレーニング用データを除く
+wbcd_n %>% 
+  dplyr::sample_n(469) %>% print() %>%  # トレーニング用インスタンス
+  dplyr::anti_join(wbcd_n, .)           # テスト用インスタンス
 ```
 
 　  
-また、`dplyr`パッケージでは因子（クラス）毎に同数をサンプリングすることも可能です。
+
+## データによるモデルの訓練
+　$k$ 近傍法ではモデル自体の作成は行われるトレーニング用インスタンスを用いてテスト用インスタンスをラベリングします。また、実行の際には近傍数である $k$ を指定する必要があります。ラベリング処理は前述のように近傍 $k$ 個のインスタンスを用いた多数決ですのでタイを避けるために奇数を指定するのが好ましいといわれています。  
+　$k$ 近傍法の関数は色々とありますがここでは `class` パッケージの `class::knn` 関数を用います。`class::knn` 関数は引数にトレーニング用インスタンス、テスト用インスタンス、トレーニング用ラベル、近傍数を与える必要があります。
 ```{r}
-iris %>% 
-  dplyr::group_by(Species) %>% 
-  dplyr::sample_n(10)
+class::knn(train = wbcd_train, test = wbcd_test, cl = train_labels, k = 21)
 ```
 
-```{r, include=FALSE}
-rm(train, test)
-```
-
+　これだけでテスト用インスタンスのラベリング（分類）は完了です。
 　  
 
-#### ラベルの作成 【P72】
-`class::knn`関数を使う場合、トレーニング用、テスト用のラベルは必ず"atomic vector"でなければなりません。
-```{r, eval=FALSE}
-# # トレーニング用データのラベル
-# wbcd_train_labels <- wbcd_n %>% 
-#   tibble::rowid_to_column("No") %>% 
-#   dplyr::filter(No <= 469) %>% 
-#   dplyr::select(diagnosis)
-# 
-# # テスト用データのラベル（性能評価する場合にのみラベルが必要）
-# wbcd_test_labels <- wbcd_n %>% 
-#   tibble::rowid_to_column("No") %>% 
-#   dplyr::filter(No > 469) %>% 
-#   dplyr::select(diagnosis)
-# 
-# # ラベルはベクトル変数でなければならない
-# wbcd_train_labels <- wbcd_train_labels$diagnosis
-# wbcd_test_labels <- wbcd_test_labels$diagnosis
-# 
-# wbcd_train_labels
-# wbcd_test_labels
-```
-
-　  
-
-## ステップ3 - データによるモデルの訓練 【P73】
-見出しに「モデル」とありますが、遅延学習ではモデルの作成は行われません。トレーニングデータを用いてテストデータのラベル付けを行うだけです。なお、kの値（最近傍の数）にはトレーニング用インスタンス数の平方根に近い整数（奇数）を指定しています。kの値を奇数にする理由は [「"二項分類（二値分類）"の場合に同票数で分類できなくなる問題を避ける」 <i class="fa fa-external-link"></i>](https://ja.wikipedia.org/wiki/K%E8%BF%91%E5%82%8D%E6%B3%95){target="_blank" title="Wikipedia"} （多数決でタイにならないようにする）ためです。
+## モデルの性能評価
+　ラベリングができましたので実際の値（テスト用ラベル）との一致度を混同行列（コンフュージョンマトリクス）を用いて確認します。混同行列は `caret::confusionMatrix` 関数を用いて算出します。
 ```{r}
-wbcd_test_pred <- class::knn(train = wbcd_train, test = wbcd_test,
-                             cl = wbcd_train_labels, k = 21)
-
-wbcd_test_pred
+result <- class::knn(train = wbcd_train, test = wbcd_test, cl = train_labels, k = 21) %>% 
+  caret::confusionMatrix(reference = test_labels)
+result
 ```
-
+　約 `r result$overall[1]*100`$\%$ の正解率（Accuracy）が得られていることが分かりますが、本来「悪性」であるものを良性と判断（`r result$table[3]` 件）しているためガンを見逃す可能性が高くあまり好ましい結果とはいえません。
 　  
 
-## ステップ4 - モデルの性能評価 【P74】
-分類ができましたので、クロス集計で性能を評価してみましょう。
-```{r}
-gmodels::CrossTable(x = wbcd_test_labels, y = wbcd_test_pred,
-                    prop.chisq = FALSE)
-```
-
-　  
-
-## ステップ5 - モデルの性能の改善 【P76】
+## モデルの性能の改善
 
 　  
 
@@ -509,12 +474,10 @@ wbcd_test_z_labels <- wbcd_test_z$diagnosis
 ```
 
 ```{r}
-wbcd_test_z_pred <- class::knn(train = wbcd_train_z[, -1],
+class::knn(train = wbcd_train_z[, -1],
                                test = wbcd_test_z[, -1],
-                               cl = wbcd_train_z_labels, k = 21)
-
-gmodels::CrossTable(x = wbcd_test_z_labels, y = wbcd_test_z_pred,
-                    prop.chisq = FALSE)
+                               cl = wbcd_train_z_labels, k = 21) %>% 
+  caret::confusionMatrix(reference = wbcd_test_z_labels)
 ```
 
 　  
@@ -545,9 +508,9 @@ kの値を変えることで性能を変えることができるかも知れま�
 for (k in c(1, 3, 5, 7, 9)) {
   print(paste0("k = ", k))
   set.seed(seed)
-  gmodels::CrossTable(x = wbcd_test_labels,
+  gmodels::CrossTable(x = test_labels,
                       y = class::knn(train = wbcd_train, test = wbcd_test,
-                                     cl = wbcd_train_labels, k = k),
+                                     cl = train_labels, k = k),
                       prop.chisq = FALSE)
 }
 ```
@@ -578,7 +541,7 @@ k | 偽陰性(B/M) | 偽陽性(M/B) | error rate
 `kknn::train.kknn`関数は"leave-one-out"（一個抜き）交差検証が行える関数です。文字通りデータから一個だけインスタンスを抜き出して、残るインスタンスでトレーニングを行い抜いたインスタンスでテストを行いエラーレート（誤答率$= \ \frac{FP+FN}{TP+TN+FP+FN}$ = $1 - 正答率$）で評価します。これをインスタンスの個数分繰り返して最適なkの値を導き出します。したがって、かなりの計算時間を要します。
 ```{r}
 wbcd_train %>% 
-  dplyr::mutate(.label = wbcd_train_labels) %>% 
+  dplyr::mutate(.label = train_labels) %>% 
   dplyr::select(.label, dplyr::everything()) %>% 
   kknn::train.kknn(.label ~ ., data = .)
 ```
@@ -591,7 +554,7 @@ wbcd_train %>%
 `e1071::tune.knn`関数は"k-fold"（k-分割）交差検証が行える関数です。文字通りデータをk-分割し、一つをテスト用データ、残り（$k - 1$）をトレーニング用データとし、分割数（$k$）だけ繰り返し`kknn::train.kknn`関数と同様にエラーレート（誤答率）が最も少なくなるkの値を最適なkの値として返します。
 ```{r, message=FALSE}
 set.seed(seed)
-(knnfit <- e1071::tune.knn(x = wbcd_train, y = wbcd_train_labels, k = 1:30)) %>% 
+(knnfit <- e1071::tune.knn(x = wbcd_train, y = train_labels, k = 1:30)) %>% 
   summary()
 
 knnfit %>% 
@@ -604,7 +567,7 @@ knnfit %>%
 `caret::train`関数は様々な交差検証を行える関数です。k近傍法の"k-fold"（k-分割）交差検証（デフォルトは10-fold）を行うには以下のように指定します。kの値の選択には`e1071::tune.knn`関数などとは異なり"Accuracy"（正答率$= \ \frac{TP+TN}{TP+TN+FP+FN}$）が使われます。
 ```{r, message=FALSE}
 set.seed(seed)
-(knnfit <- caret::train(x = wbcd_train, y = wbcd_train_labels,
+(knnfit <- caret::train(x = wbcd_train, y = train_labels,
              method = "knn", tuneGrid = expand.grid(k = c(1:30)),
              trControl = caret::trainControl(method = "cv")))
 ```
@@ -618,7 +581,7 @@ knnfit %>%
 繰返し交差検証（上記の交差検証を指定回数繰り返して行う検証）を行うことや、fold数を変更することも可能な便利な関数です。
 ```{r}
 set.seed(seed)
-caret::train(x = wbcd_train, y = wbcd_train_labels,
+caret::train(x = wbcd_train, y = train_labels,
              method = "knn", tuneGrid = expand.grid(k = c(1:30)),
              trControl = caret::trainControl(method = "repeatedcv",
                                              number = 5, repeats = 5))
