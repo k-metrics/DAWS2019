@@ -72,18 +72,6 @@ $$= \sqrt{\sum_{i=1}^{n}(P_i - Q_i)^2} = d_2(Q, P)$$
 
 　  
 
-### 【参考】距離
-　距離にはユークリッド距離（$L_2$ 距離）の他にマンハッタン距離（$L_1$ 距離）と呼ばれる距離があります。その計算方法は以下の通りです。
-
-$$d_1(P, Q) = \sum_{i = 1}^{n}{|P_i - Q_1|} = d_1(Q, P)$$
-
-　ちなみにマンハッタン距離の名前はニューヨーク州のマンハッタン島のような升目状の道路を移動する際の距離に由来しているらしいです。他にも $n$ 次元における距離はマハラノビス距離、チェビシェフ距離、ミンコフスキー距離などがあります。  
-　ミンコフスキー距離（$L_n$）はユークリッド距離やマンハッタン距離を一般化した距離で以下の式により定義されます。 $p = 1$ の場合はマンハッタン距離、 $p = 2$ の場合はユークリッド距離になります。
-
-$$d_p(P, Q) = (\sum_{i = 1}^{n}|P_i - Q_i|^p)^{\frac{1}{p}}$$
-
-　  
-
 ## 最適な $k$ の選択
 　$k$ 近傍法は前述のようにユークリッド距離を用いて近傍の $k$ 個を探索し、探索された $k$ 個のインスタンスを用いて分類しますので、探索する数（$k$）を変えると分類結果が変わる場合があります。$k$ を小さくし過ぎるとゲインが高くなり汎化性能が確保できなくなります。  
 　最適な $k$ の値を求めるには交差検証を用いるのが一般的です。交差検証を行うには `e1071` パッケージや `caret` パッケージを用います。具体的な計算方法は後述します。  
@@ -235,19 +223,6 @@ data.frame(size = c("Large", "Large", "Small", "Large", "Medium",
                   normalize(.))
 ```
 
-## One-Hot エンコーディング
-　ダミーコーディングと似たエンコーディングに One-Hot エンコーディングというものもあります。One-Hot エンコーディングはインスタンスが属す水準に対してフラグ（$1$）を立てるものです。例えば、前述の性別を One-Hot エンコーディングすると以下のようになります。
-```{r}
-data.frame(sex = c("M", "F", "M", "F", "M", "M", "M", "F")) %>% 
-  # 男性（"M"）ならば 1 異なるなら 0 を割り当てる
-  dplyr::mutate(male = dplyr::if_else(sex == "M", 1, 0),
-                female = dplyr::if_else(sex == "F", 1, 0)) %>% 
-  knitr::kable(caption = "One-Hot Encoding")
-```
-　ダミーコーディングとの一番の違いは $n$ 個の水準が $n$ 個の数値変量になる点です。  
-
-　その他、 Effect コーディングと呼ばれる手法もありますが、ここでは説明を省略しますので、ご自身で調べてみてください。  
-
 　  
 
 # 実例
@@ -302,15 +277,6 @@ wbcd
 
 　  
 　サンプルコードと同様に診断結果の `diagnosis` の水準名を変更し因子型変数に変換します。因子型変数を扱うには `tidyverse` ファミリーである `forcats` パッケージが便利です。 `forcats` パッケージは `tidyverse` パッケージを読み込んだ際に一緒に読み込まれています。
-```{r, include=FALSE, eval=FALSE}
-# wbcd <- wbcd %>% 
-#   dplyr::mutate(diagnosis = forcats::fct_inorder(diagnosis)) %>% 
-#   dplyr::mutate(diagnosis = forcats::fct_recode(diagnosis,
-#                                                 Malignant = "M",
-#                                                 Benign = "B"))
-# wbcd
-```
-
 ```{r}
 wbcd <- wbcd %>% 
   dplyr::mutate(diagnosis = forcats::fct_inorder(diagnosis)) %>% 
@@ -434,175 +400,154 @@ class::knn(train = wbcd_train, test = wbcd_test, cl = train_labels, k = 21)
 　ラベリングができましたので実際の値（テスト用ラベル）との一致度を混同行列（コンフュージョンマトリクス）を用いて確認します。混同行列は `caret::confusionMatrix` 関数を用いて算出します。
 ```{r}
 result <- class::knn(train = wbcd_train, test = wbcd_test, cl = train_labels, k = 21) %>% 
-  caret::confusionMatrix(reference = test_labels)
+  caret::confusionMatrix(reference = test_labels, positive = "悪性")
 result
 ```
-　約 `r result$overall[1]*100`$\%$ の正解率（Accuracy）が得られていることが分かりますが、本来「悪性」であるものを良性と判断（`r result$table[3]` 件）しているためガンを見逃す可能性が高くあまり好ましい結果とはいえません。
+　約 $`r result$overall[1]*100`\%$ の正解率（Accuracy）が得られていることが分かりますが、本来「悪性」であるものを良性と判断（$`r result$table[3]`$ 件）しているためガンを見逃す可能性が高くあまり好ましい結果とはいえません。  
+
 　  
 
 ## モデルの性能の改善
+　最小最大正規化では約 $`r result$overall[1]*100`\%$ の正解率が得られましたが偽陰性が $`r result$table[3]`$ 件ありましたのでモデル性能の改善ができるか検討してみます。  
 
 　  
 
-### 変換 - Zスコア標準化 【P76】
-汎化性能を確保するためにZスコア正規化を使った場合を確認しておきます。Zスコア正規化には前述のように`scale`関数を用いますが、`scale`関数の返り値は"atomic vector"にならないので、`purrr::map`関数を用いて`scale`関数を適用します。
+### Zスコア正規化
+　正規化手法を $Z$ スコア正規化に変更してモデル性能の改善が図れるかを確認してみます。
 ```{r}
 wbcd_nz <- wbcd %>% 
   purrr::map_if(is.numeric, scale) %>% as.data.frame()
-  # dplyr::mutate_if(is.numeric, scale, center = FALSE, scale = FALSE)
 
 wbcd_nz %>% 
   dplyr::select_if(is.numeric) %>%
-  skimr::skim_to_wide()
+  skimr::skim()
 ```
 
 　  
-
-#### トレーニング用、テスト用データならびにラベルの作成 【P77】
-最小最大正規化と同様のトレーニング用、テスト用データを作成します。
+　トレーニング用とテスト用のインスタンスならびにラベルを作成します。
 ```{r}
 split <- wbcd_nz %>% 
   rsample::initial_split(prop = 1 - 100/569)
 
 wbcd_train_z <- split %>% 
-  rsample::training()   # .$in_idに該当するデータを取り出す
+  rsample::training()
 wbcd_test_z <- split %>% 
-  rsample::testing()    # .$in_idに該当しないデータを取り出す
+  rsample::testing()
 
-wbcd_train_z_labels <- wbcd_train_z$diagnosis
-wbcd_test_z_labels <- wbcd_test_z$diagnosis
+train_z_labels <- wbcd_train_z$diagnosis
+test_z_labels <- wbcd_test_z$diagnosis
 ```
 
 ```{r}
-class::knn(train = wbcd_train_z[, -1],
-                               test = wbcd_test_z[, -1],
-                               cl = wbcd_train_z_labels, k = 21) %>% 
-  caret::confusionMatrix(reference = wbcd_test_z_labels)
+class::knn(train = wbcd_train_z[, -1], test = wbcd_test_z[, -1],
+           cl = train_z_labels, k = 21) %>% 
+  caret::confusionMatrix(reference = test_z_labels, positive = "悪性")
 ```
 
-　  
-<center> > <font size="+2"> **クロス集計はどちらにすべき？** </font></center>
-　  
-
-テキストでは縦軸が"Predict"、横軸が"Actual"と指定しており、因子型の順番から良性（陰性）、悪性（陽性）の順になっています。
-
-　               | **予測（良性）** | **予測（悪性）** | 備考
------------------|--------------|--------------|-----
-**実際（良性）** | 真陰性       | 偽陽性（FP） | 陰性
-**実際（悪性）** | 偽陰性（FN） | 真陽性       | 陽性
-
-　  
-一方、偽陽性、偽陰性を説明するクロス集計表では以下のように縦軸が"Actual"、横軸が"Predict"になるように指定していることが多いようです。
-　  
-
-　               | **疾患（あり）** | **疾患（なし）** | 備考
------------------|--------------|--------------|-----
-**検査（陽性）** | 真陽性       | 偽陽性（FP） | 
-**検査（陰性）** | 偽陰性（FN） | 真陰性       | 
+　残念ながら正解率、偽陰性ともに悪化していますので正規化手法を変更してもモデル性能は改善できなと言えます。  
 
 　  
 
-### kの別の値 【P77】
-kの値を変えることで性能を変えることができるかも知れません。最小最大正規化したデータでkの値を変更（k = 1, 3, 5, 7, 9）した場合の結果を見てみましょう。
+### 近傍数の変更
+　正規化手法を変更してもモデル性能の改善が図れませんでしたので近傍数 $k$ の値を変えてみます。
 ```{r}
-for (k in c(1, 3, 5, 7, 9)) {
-  print(paste0("k = ", k))
-  set.seed(seed)
-  gmodels::CrossTable(x = test_labels,
-                      y = class::knn(train = wbcd_train, test = wbcd_test,
-                                     cl = train_labels, k = k),
-                      prop.chisq = FALSE)
+for (k in seq(from = 1, to = 25, by = 2)) {
+result <- class::knn(train = wbcd_train, test = wbcd_test, 
+                     cl = train_labels, k = k) %>% 
+  caret::confusionMatrix(reference = test_labels, positive = "悪性")
+  print(paste0("k = ", k, " ER:", 1 - result$overall[1],
+               " 偽陰性:", result$table[3], " 偽陽性: ", result$table[2]))
 }
 ```
 
-k | 偽陰性(B/M) | 偽陽性(M/B) | error rate
--:|------------:|------------:|-----:
-1 | 1           | 3           | 0.04
-3 | 2           | 1           | 0.03
-5 | 2           | 0           | 0.02
-7 | 4           | 0           | 0.04
-9 | 4           | 0           | 0.04
-
-エラーレート（(偽陰性数 + 偽陽性数)/テスト数 $= \frac{FN+FP}{FN+FP+TN+TP}$）だけを見ると`k = 5`がベストですが、細胞の良性・悪性判断という分類の目的を考えると偽陰性（分類結果が良性であるが実際には悪性であるケース）を極力減らせる方向に振るべきだと考えられますので`k = 1`が最適といえます。ただ、`k = 1`は最小値でありトレーニング用データに対してセンシティブ過ぎる可能性があり、判断が難しいところです。
+　ER（エラーレート $= 1 - 正解率$）と偽陰性、偽陽性数を見ると $K = 5$ あたりが良さそうに見えます。$k = 1$ は偽陰性がミニマムなのでベストのように見えますが $k$ 近傍法のアルゴリズムを考えるとオーバーフィッティング（過学習）の可能性があります。  
+　また、『MLwR 2nd』ではトレーニング用とテスト用のインスタンスを作成するたいに単純分割を行っていますが、ランダムサンプリングを行うと違う傾向が見えてくるかも知れません。
 
 　  
 
-### 交差検証 【テキスト外】
-交差検証（Cross Validation）とは分割したデータの一部でトレーニングを行い残るデータでテストを行いモデルの妥当性を検証（確認）する方法です。ホールドアウト法と異なるのは分割数分だけトレーニングとテストを繰り返し行う（交差させる）点です。そのためホールドアウト法に比べると時間がかかります。主な交差検証としては
+# まとめ
+　$k$ 近傍法は分類結果しか出てこない（モデルを作らない）ので学習とは言い難い点はありますが、トレーニング用インスタンスと数行のコードでかなり正確な分類を行ってくれる便利なアルゴリズムであることが分かりました。ただし、分類結果はトレーニング用インスタンスに大きく左右される点、近傍数 $k$ の選択方法にはこれが正解という解がない点には注意が必要です。また、様々なパッケージで様々な実装が行われていますので、目的や使い勝手にあったパッケージを選択する必要があります。  
+　  
+　モデルの評価方法には正答率（$Accuracy = \frac{TP+TN}{TP+TN+FP+FN} = 1 - \frac{FP+FN}{TP+TN+FP+FN}$）の他に適合率（$Precision = \frac{TP}{TP+FP}$）や再現率（$Recall = \frac{TP}{TP+FN}$）といった指標が使われます。モデルの目的にあった評価指標を選択する必要があります。
+
+　  
+
+# Appendix
+　『MLwR 2nd』では触れられていない関連知識などを紹介します。  
+
+　  
+
+## 距離 
+　距離にはユークリッド距離（$L_2$ 距離）の他にマンハッタン距離（$L_1$ 距離）と呼ばれる距離があります。その計算方法は以下の通りです。
+
+$$d_1(P, Q) = \sum_{i = 1}^{n}{|P_i - Q_1|} = d_1(Q, P)$$
+
+　ちなみにマンハッタン距離の名前はニューヨーク州のマンハッタン島のような升目状の道路を移動する際の距離に由来しているらしいです。他にも $n$ 次元における距離はマハラノビス距離、チェビシェフ距離、ミンコフスキー距離などがあります。  
+　  
+　中でもミンコフスキー距離（$L_n$）はユークリッド距離やマンハッタン距離を一般化した距離で以下の式により定義されます。  
+
+$$d_p(P, Q) = (\sum_{i = 1}^{n}|P_i - Q_i|^p)^{\frac{1}{p}}$$
+
+　$p = 1$ の場合はマンハッタン距離、 $p = 2$ の場合はユークリッド距離になります。  
+
+　  
+
+## One-Hot エンコーディング
+　ダミーコーディングと似たエンコーディングに One-Hot エンコーディングという方法もあります。One-Hot エンコーディングはインスタンスが属す水準に対してフラグ（$1$）を立てるものです。例えば、性別を One-Hot エンコーディングするとダミーコーディングとは異なり以下のようになります。
+```{r}
+data.frame(sex = c("M", "F", "M", "F", "M", "M", "M", "F")) %>% 
+  # 男性（"M"）ならば 1 異なるなら 0 を割り当てる
+  dplyr::mutate(male = dplyr::if_else(sex == "M", 1, 0),
+                female = dplyr::if_else(sex == "F", 1, 0)) %>% 
+  knitr::kable(caption = "One-Hot Encoding")
+```
+
+　  
+　ダミーコーディングとの一番の違いは $n$ 個の水準が $n$ 個の数値変量になる点です。その他、 Effect コーディングと呼ばれる手法もありますが、ここでは説明を省略します。  
+
+　  
+
+## 交差検証
+　交差検証（Cross Validation）とは分割したデータの一部でトレーニングを行い残るデータでテストを行いモデルの妥当性を検証（確認）する方法です。ホールドアウト法と異なるのは分割数分だけトレーニングとテストを繰り返し行う（交差させる）点です。そのためホールドアウト法に比べると時間がかかります。主な交差検証としては  
 
 * leave-one-out交差検証（一個抜き交差検証）
 * k-fold交差検証（k分割交差検証）
 
-があります。一般的に交差検証では正答率（$= \frac{TP + TN}{TP+TN+FP+FN}$）または誤答率（$1 - 正答率$）を指標としてモデルパラメータの最適値を求めます。k近傍法でkの値を選択するのにはこの交差検証を用いる方法が簡単です。しかし、交差検証を行ったからと言って、求められたkの値が分類目的に合っている保証はありません（例：テキストの事例では偽陰性（FN）が増えるのは好ましくないで単に正答率が高いk値では誤診招く可能性があります）。また、ランダムサンプリングを用いていますので全ての関数で結果が一致する保証はありません（本ページではランダム・シードを固定して再現性を確保できるようにしてはあります）。
+　  
+　があります。一般的に交差検証では正解率率（$= \frac{TP + TN}{TP+TN+FP+FN}$）または誤答率（$1 - 正解率$）を指標としてモデルパラメータの最適値を求めます。$k$ 近傍法で近傍数 $k$ を選択するのにはこの交差検証を用いる方法が簡単です。しかし、交差検証を行ったからと言って、求められた $k$ の値が分類目的に合っている保証はありません（例：テキストの事例では偽陰性（FN）が増えるのは好ましくないで単に正答率が高いk値では誤診招く可能性があります）。また、ランダムサンプリングを用いていますので全ての関数で結果が一致する保証はありません。  
+　  
+ $k$ 近傍法の交差検証を行えるパッケージとしては以下のようなパッケージがあります。
+ 
+Package      | Descriptions
+-------------|------------------------------------------------------------------
+caret        | Classification and Regression Training
+e1071        | Misc Functions of the Department of Statistics, Probability Theory Group (Formerly: E1071), TU Wien
+kknn         | Weighted k-Nearest Neighbors
+
+　ここでは `caret` パッケージによる交差検証を行ってみます。
 
 　  
 
-#### kknnパッケージによる交差検証
-`kknn::train.kknn`関数は"leave-one-out"（一個抜き）交差検証が行える関数です。文字通りデータから一個だけインスタンスを抜き出して、残るインスタンスでトレーニングを行い抜いたインスタンスでテストを行いエラーレート（誤答率$= \ \frac{FP+FN}{TP+TN+FP+FN}$ = $1 - 正答率$）で評価します。これをインスタンスの個数分繰り返して最適なkの値を導き出します。したがって、かなりの計算時間を要します。
-```{r}
-wbcd_train %>% 
-  dplyr::mutate(.label = train_labels) %>% 
-  dplyr::select(.label, dplyr::everything()) %>% 
-  kknn::train.kknn(.label ~ ., data = .)
-```
-
-なお、`kknn`パッケージには`cv.kknn`関数という"k-fold"（k-分割）交差検証を行う関数もありますが、使い方がよく分からないので割愛します。
-
-　  
-
-#### e1071パッケージによる交差検証
-`e1071::tune.knn`関数は"k-fold"（k-分割）交差検証が行える関数です。文字通りデータをk-分割し、一つをテスト用データ、残り（$k - 1$）をトレーニング用データとし、分割数（$k$）だけ繰り返し`kknn::train.kknn`関数と同様にエラーレート（誤答率）が最も少なくなるkの値を最適なkの値として返します。
+### caretパッケージによる交差検証
+　`caret::train` 関数は様々な交差検証を行える関数です。$k$ 近傍法の "k-fold"（k-分割）交差検証（デフォルトは 10-fold）を行うには以下のように指定します。$k$ 値の選択基準としてはデフォルトで "Accuracy"（正解率$= \ \frac{TP+TN}{TP+TN+FP+FN}$）が使われます。
 ```{r, message=FALSE}
-set.seed(seed)
-(knnfit <- e1071::tune.knn(x = wbcd_train, y = train_labels, k = 1:30)) %>% 
-  summary()
-
-knnfit %>% 
-  plot()
+knnfit <- caret::train(x = wbcd_train, y = train_labels,
+                       method = "knn", tuneGrid = expand.grid(k = c(1:30)),
+                       trControl = caret::trainControl(method = "cv"))
+knnfit
 ```
 
-　  
-
-#### caretパッケージによる交差検証
-`caret::train`関数は様々な交差検証を行える関数です。k近傍法の"k-fold"（k-分割）交差検証（デフォルトは10-fold）を行うには以下のように指定します。kの値の選択には`e1071::tune.knn`関数などとは異なり"Accuracy"（正答率$= \ \frac{TP+TN}{TP+TN+FP+FN}$）が使われます。
-```{r, message=FALSE}
-set.seed(seed)
-(knnfit <- caret::train(x = wbcd_train, y = train_labels,
-             method = "knn", tuneGrid = expand.grid(k = c(1:30)),
-             trControl = caret::trainControl(method = "cv")))
-```
-
-可視化も簡単に行えます。
+　`ggplot2` パッケージによる可視化も簡単に行えます。
 ```{r}
 knnfit %>% 
   ggplot2::ggplot()
 ```
 
-繰返し交差検証（上記の交差検証を指定回数繰り返して行う検証）を行うことや、fold数を変更することも可能な便利な関数です。
-```{r}
-set.seed(seed)
-caret::train(x = wbcd_train, y = train_labels,
-             method = "knn", tuneGrid = expand.grid(k = c(1:30)),
-             trControl = caret::trainControl(method = "repeatedcv",
-                                             number = 5, repeats = 5))
-```
-
+　繰返し交差検証（上記の交差検証を指定回数繰り返して行う検証）を行うことや、fold数を変更することも可能です。
 
 　  
 
-# 3.3 まとめ 【P78】
-k近傍法は分類結果しか出てこない（モデルを作らない）ので学習とは言い難い点はありますが、トレーニング用データと数行のコードでかなり正確な分類を行ってくれる便利なアルゴリズムであることが分かりました。ただし、分類結果はトレーニング用データに大きく左右される点、kの値の選択方法はこれが正解という唯一無二の解がない点には注意が必要です。また、様々なパッケージで様々な実装が行われていますので、目的や使い勝手にあったパッケージを選択する必要があります。
-
-モデルの評価方法には正答率（$Accuracy = \frac{TP+TN}{TP+TN+FP+FN} = 1 - \frac{FP+FN}{TP+TN+FP+FN}$）の他に適合率（$Precision = \frac{TP}{TP+FP}$）や再現率（$Recall = \frac{TP}{TP+FN}$）といった指標が使われます。モデルの目的にあった評価指標を選択する必要があります。
-
-　  
-
-# Case Study 【テキスト外】
-テキスト以外のデータを用いたk近傍法の [ケーススタディをこちら](./casestrudy_knn.html){title="Case Study"} にまとめてあります。
-
-　  
-
-# 参考資料
+## 参考資料
 * [Lazy Learning - Classification Using Nearest Neighbors <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/courses/DSPA_notes/06_LazyLearning_kNN.html){target="_blank" title="University of Michigan: Data Science and Predictive Analytics (UMich HS650)"} 
 * [Assignment 6: Lazy Learning - Classification Using Nearest Neighbors <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/courses/DSPA_notes/06_LazyLearning_kNN_Assignment.html){target="_blank" title="University of Michigan: Data Science and Predictive Analytics (UMich HS650)"} 
 * [Python と R の違い (k-NN 法による分類器) <i class="fa fa-external-link"></i>](https://pythondatascience.plavox.info/python%E3%81%A8r%E3%81%AE%E9%81%95%E3%81%84/k-nn%E6%B3%95＊){target="_blank" title="Python でデータサイエンス"} 
@@ -622,7 +567,6 @@ k近傍法は分類結果しか出てこない（モデルを作らない）の�
 * [【機械学習】モデル評価・指標についてのまとめと実行( w/Titanicデータセット) <i class="fa fa-external-link"></i>](https://qiita.com/kenmatsu4/items/0a862a42ceb178ba7155){target="_blank" title="Qiita"} 
 
 
-　  
 
 ---
 <center> [CC BY-NC-SA 4.0 <i class="fa fa-external-link"></i>](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ja), Sampo Suzuki [`r format(Sys.time(), format = '%F(%Z)')`] </center>

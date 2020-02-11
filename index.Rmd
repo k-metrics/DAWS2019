@@ -1,5 +1,5 @@
 ---
-# title: "はじめに"
+title: "データ分析勉強会2019"
 author-meta: "Sampo Suzuki"
 pagetitle: "DAWS2019"
 output: html_document
@@ -34,16 +34,17 @@ require(tidyverse)
 
 　  
 　機械学習を学ぶ際にもブラックボックス統計学にならないために基本を学ぶことがとても大切です。  
+
 　  
 
 ## 想定読者
  本サイトの想定読者は以下の通りです。
 
-* R言語に関する基本的な知識を有している
+* R 言語に関する基本的な知識を有している
 * 機械学習を学ぼうとしている
 * 勉強会参加者
 
-　R言語の基本的な知識をお持ちでない初学者の方は最初に以下の書籍などでR言語に関する基本的な知識を習得することをおすゝめします。
+　R 言語の基本的な知識をお持ちでない初学者の方は最初に以下の書籍などでR言語に関する基本的な知識を習得することをおすゝめします。
 
 * [『RユーザのためのRStudio［実践］入門』 <i class="fa fa-external-link"></i>](https://gihyo.jp/book/2018/978-4-7741-9853-8){target="_blank" title="技術評論社"}
 * [『再現可能性のすゝめ ―RStudioによるデータ解析とレポート作成―』 <i class="fa fa-external-link"></i>](https://www.kyoritsu-pub.co.jp/bookdetail/9784320112438){target="_blank" title="共立出版"} 
@@ -51,11 +52,7 @@ require(tidyverse)
 　  
 
 ## About
-
-　  
-
-### Links
-ページ内のリンクは基本的に以下のようにしています。  
+　ページ内のリンクは基本的に以下のようにしています。  
 
 * サイト内へのリンクは基本的に同一ウィンドウ（タブ）で開きます
 * サイト内へのリンクであっても参照文書などは意図的に別ウィンドウ（タブ）で開くようにしてあります
@@ -69,7 +66,6 @@ require(tidyverse)
 
 　  
 
-### Builder
 　本サイトは [R Markdown Websites <i class="fa fa-external-link"></i>](https://rmarkdown.rstudio.com/rmarkdown_websites.htm){target="_blank" title="RStudio, PBC"} を利用して作成しています。  
 
 　  
