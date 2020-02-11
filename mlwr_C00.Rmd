@@ -1,5 +1,5 @@
 ---
-title: "MLwR - はじめに"
+title: "はじめに"
 author-meta: "Sampo Suzuki"
 pagetitle: "DAWS2019"
 output: html_document
@@ -14,20 +14,24 @@ require(tidyverse)
 
 　『Rによる機械学習』（原著『Machine Learning with R Second Edition』、以降、『MLw 2nd』と表記）は読者として以下を想定しています。
 
-* データを活用して**アクションを起こしたい**人
-* Rの知識は少しあるが**機械学習を全く知らない**人
-* 機械学習の知識は少しあるが**Rを使ったことはない**人
+* データを活用して **アクションを起こしたい** 人
+* R の知識は少しあるが **機械学習を全く知らない** 人
+* 機械学習の知識は少しあるが **R を使ったことはない** 人
 
-　そのため第2章では R の基本について解説されていますが、本サイトでは省略します。また、『MLwR 2nd』におけるサンプルコードは R version 3.2.0 を使用していますが、本サイトでは `r version$version.string` を使用していますので出力結果などがサンプルコードとは異なる場合があります。  
+　そのため第2章では R の基本について解説されていますが、本サイトでは想定読者の項で記述したように R に関する基本的な知識を有している人を対象にしていますので省略します。また、『MLwR 2nd』におけるサンプルコードは **R version 3.2.0** を使用していますが、本サイトでは **`r version$version.string`** を使用していますので出力結果などがサンプルコードとは異なる場合があります。  
 
 　  
 
-なお、本ページで利用しているデータならびにコードはサンプルファイルをベースにしています。また、【】で表記されているページ数は書籍『Rによる機械学習（第2刷）』に基づいています。
+## 用語
+　『MLwR 2nd』では聞きなれない二つの用語が出ていきます。考え方の基本は [Tidy Data <i class="fa fa-external-link"></i>](https://en.wikipedia.org/wiki/Tidy_data){target="_blank" title="Wikipedia, en"} と同じです。  
+　  
 
-## 用語の定義
-インスタンス
-フィーチャー
+用語         | 意味
+-------------|------------------------------------------------------------------
+インスタンス | 個々の観測・観測単位（データフレーム型変数の行に相当）
+フィーチャー | 個々の変量（変数）（データフレーム型変数の列に相当）
 
+　  
 
 ## Sample Code and Data
 　『MLwR 2nd』のサンプルコードおよびサンプルデータは [GitHub <i class="fa fa-external-link"></i>](https://github.com/dataspelunking/MLwR){target="_blank" title=""} にて公開されています。  
@@ -35,11 +39,13 @@ require(tidyverse)
 　  
 
 ## Random Number Generation
-　R version 3.6.0 から乱数生成アルゴリズムが変更されています（詳細は [R News <i class="fa fa-external-link"></i>](https://cran.r-project.org/doc/manuals/r-release/NEWS.html){target="_blank" title="CRAN"} 参照方）。
+　**R version 3.6.0** から乱数生成アルゴリズムが変更されています（詳細は [R News <i class="fa fa-external-link"></i>](https://cran.r-project.org/doc/manuals/r-release/NEWS.html){target="_blank" title="CRAN"} 参照方）。  
+　  
 
 > The **default method for generating** from a discrete uniform distribution (used in sample(), for instance) **has been changed**. ... The previous method can be requested using RNGkind() or RNGversion() if necessary for reproduction of old results.
 
-　本サイトではサンプルコードなどのコードを実行するまえに以下のコードを実行して前方互換性を確保しています。
+　  
+　本サイトではサンプルコードなどのコードを実行するまえに以下のコードを実行して乱数生成の前方互換性を確保しています。
 ```{r, eval=FALSE}
 if (getRversion() >= "3.6.0") {
   RNGversion("3.2.0")   # テキストのサンプルコードが書かれたバージョン
