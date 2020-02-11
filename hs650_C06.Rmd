@@ -1,0 +1,263 @@
+---
+title: "VI. Lazy Learning"
+author-meta: "Sampo Suzuki"
+pagetitle: "DAWS2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, eval = FALSE)
+
+htmltools::tagList(rmarkdown::html_dependency_font_awesome())
+
+require(tidyverse)
+
+seed <- 300
+RNGversion("3.5.3")
+```
+
+　[Data Science and Predictive Analytics (UMich HS650) <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/courses/DSPA_Topics.html){target="_blank" title="SOCR, Univrecity of Michigan"} コースの第6章 [Lazy Learning - Classification Using Nearest Neighbors <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/courses/DSPA_notes/06_LazyLearning_kNN.html){target="_blank" title="UMich HS650"} のケーススタディです。
+　本ケーススタディでは学生の飲酒や家庭環境などと学業成績がどのような関係にあるかを分類するものです。データは [3 Case Study <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/courses/DSPA_notes/06_LazyLearning_kNN.html#3_case_study){target="_blank" title="Lazy Learning - Classification Using Nearest Neighbors"} から入手してください。
+
+
+
+# Packages and Datasets
+本ページでは以下の追加パッケージを用いています。
+
+Package      | Descriptions
+-------------|----------------------------------------------------
+class        | Functions for Classification
+gmodels      | Various R Programming Tools for Model Fitting
+caret        | Classification and Regression Training
+e1071        | Misc Functions of the Department of Statistics, Probability Theory Group (Formerly: E1071), TU Wien
+FNN          | Fast Nearest Neighbor Search Algorithms and Applications
+iBreakDown   | Model Agnostic Instance Level Variable Attributions
+kknn         | Weighted k-Nearest Neighbors
+skimr        | Compact and Flexible Summaries of Data
+tidyverse    | Easily Install and Load the 'Tidyverse'
+
+Package      | Version   | Descriptions
+-------------|-----------|---------------------------------------------------
+class        | `r packageVersion('class')` | Functions for Classification
+caret        | `r packageVersion('caret')` | Classification and Regression Training
+e1071        | `r packageVersion('e1071')` | Misc Functions of the Department of Statistics, Probability Theory Group (Formerly: E1071), TU Wien
+skimr        | `r packageVersion('skimr')` | Compact and Flexible Summaries of Data
+tidymodels   | `r packageVersion('tidymodels')` | Easily Install and Load the 'Tidymodels' Packages
+tidyverse    | `r packageVersion('tidyverse')` | Easily Install and Load the 'Tidyverse'
+
+
+
+利用しているデータセットは各セクションで確認してください。  
+　  
+
+
+# DSPA HS650, University of Michigan {#s01}
+[Data Science and Predictive Analytics (UMich HS650) <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/DSPA_Courses.html){target="_blank" title="School of Nursing, University of Michigan"} のケーススタディです。本ケーススタディでは学生の飲酒や家庭環境などと学業成績がどのような関係にあるかを分類するものです。データなどは [3 Case Study <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/courses/DSPA_notes/06_LazyLearning_kNN.html#3_case_study){target="_blank" title="Lazy Learning - Classification Using Nearest Neighbors"} から入手することが可能です。
+
+　  
+
+## Collecting Data
+データはCSVファイルで提供されていますが、**区切り文字が**カンマでなく**空白**ですので`read.csv`関数を用いるのが無難です。
+```{r}
+(x <- "./data/UMich/CaseStudy02_Boystown_Data.csv" %>% 
+  read.csv(sep = " "))
+```
+
+データは全て数値データですが`id`は単なる識別番号なのでトレーニング（学習）やテスト（分類）には利用しませんので外しておきます。
+```{r}
+x %>% 
+  skimr::skim_to_wide()
+```
+
+実際にはアンケートで取得したデータのようで各値は離散値になっています。  
+
+feature    | 内容                       | 取りうる値
+-----------|----------------------------|----------------------------
+id         | インスタンスの識別子       | N/A
+sex        | 性別                       | 1: male, 2: female
+gpa        | （米国の）成績評価値の平均 | 0: A, 1: B, ... 5: F(不可)
+Alcoholuse | 飲酒頻度                   | 0: drink everyday, ... 11: never drinked
+alcatt     | 家庭における飲酒許容       | 0: approve, ... 6: disapprove 
+dadjob     | 父親の就業                 | 1: yes, 2: no
+momjob     | 母親の就業                 | 1: yes, 2: no
+dadclose   | 父親との親密度             | 0: usually, ... 7: never
+momclose   | 母親との親密度             | 0: usually, ... 7: never
+larceny    | $50以上の窃盗行為          | 0: never, ... 4: many times  
+vandalism  | 破壊行為                   | 0: never, ... 4: many times
+
+　  
+
+## Exploring and preparing the data
+性別と親の就業状況を0/1に変換します。
+```{r}
+(df <- x %>% 
+  dplyr::mutate(sex = sex - 1L,                 # 0: male, 1: female
+                dadjob = -1L * (dadjob - 2L),   # 0: nojob, 1: has job
+                momjob = -1L * (momjob - 2L)))  # 0: nojob, 1: has job
+```
+
+　  
+
+## Normalizing Data and Data preparation
+まず、各フィーチャーの最小値が0、最大値が1となるような正規化関数を定義します。これは第三章の実例と同じ考え方に基づくものです。
+```{r}
+normalize <- function(x = NULL) {
+  if (!is.null(x)) {
+    return((x - min(x)) / diff(range(x)))
+  } else {
+    return(NA)
+  }
+}
+```
+
+次に定義した正規化関数を用いて対象データセットの各フィーチャーを正規化しトレーニングデータとテストデータを作成します。ただし、`id`は前述のように単なる識別情報でトレーニングには不要ですので外しておきます。
+```{r}
+# Traning Data
+(df_train <- df %>% 
+  dplyr::select(-id) %>% 
+  dplyr::mutate_if(is.numeric, .funs = normalize) %>% 
+  dplyr::slice(1:150))
+
+# Test Data
+(df_test <- df %>% 
+  dplyr::select(-id) %>% 
+  dplyr::mutate_if(is.numeric, .funs = normalize) %>% 
+  dplyr::slice(151:200))
+```
+
+
+成績での分類を行いますので成績評価である`gpa`を(A, B, C)と(D, E, F)の二分割になるようにしてラベルデータを作成します。
+```{r}
+# Traning Data Label
+(df_train_label <- df %>% 
+  dplyr::select(gpa) %>% 
+  dplyr::slice(1:150) %>% 
+  dplyr::mutate(grade = gpa %in% c(3, 4, 5) %>% as.factor() %>%
+                  forcats::fct_recode(below = "TRUE", above = "FALSE")) %>% 
+  .$grade)
+
+# Test Data Label
+(df_test_label <- df %>% 
+  dplyr::select(gpa) %>% 
+  dplyr::slice(151:200) %>% 
+  dplyr::mutate(grade = gpa %in% c(3, 4, 5) %>% as.factor() %>%
+                  forcats::fct_recode(below = "TRUE", above = "FALSE")) %>% 
+  .$grade)
+```
+
+　  
+
+## Training a model on the data and Evaluating model performance
+`class::knn`関数を用いてトレーニングを行い、その結果を評価します。なお、k値はインスタンス数の平方根（`r sqrt(200)`）に最も近い整数を用います。
+```{r}
+gmodels::CrossTable(x = class::knn(train = df_train, test = df_test,
+                                   cl = df_train_label, k = 14),
+                    y = df_test_label, dnn = c("Predict", "Actual"),
+                    prop.chisq = FALSE, prop.c = FALSE, prop.t = FALSE)
+```
+
+　  
+
+## Improving model performance
+パフォーマンス改善を模索するために各フィーチャーをZスコア化してみます。ラベルデータはそのまま用います。
+```{r}
+# Traning Data
+(df_train <- df %>% 
+  dplyr::select(-id) %>% 
+  dplyr::mutate_if(is.numeric, .funs = scale) %>% 
+  dplyr::slice(1:150))
+
+# Test Data
+(df_test <- df %>% 
+  dplyr::select(-id) %>% 
+  dplyr::mutate_if(is.numeric, .funs = scale) %>% 
+  dplyr::slice(151:200))
+```
+
+Zスコア化したデータを用いてトレーニングを行ってみますが、大差はないようです。
+```{r}
+gmodels::CrossTable(x = class::knn(train = df_train, test = df_test,
+                                   cl = df_train_label, k = 14),
+                    y = df_test_label, dnn = c("Predict", "Actual"),
+                    prop.chisq = FALSE, prop.c = FALSE, prop.t = FALSE)
+```
+
+　  
+
+## Testing alternative values of k
+最適なk値を探すには`e1071::tune.knn`関数が便利です。各フィーチャーを正規化したデータを用いてk値の探索（推定）を行ってみます。
+```{r, include=FALSE}
+# Traning Data
+(df_train <- df %>% 
+  dplyr::select(-id) %>% 
+  dplyr::mutate_if(is.numeric, .funs = normalize) %>% 
+  dplyr::slice(1:150))
+```
+
+
+　  
+
+### Cross validation (CV)
+より厳密にk値を求めるのであれば交差検証（Cross Vailidation）を行うべきだと言われています。（勉強中）
+k値を最も簡単に探索（推定）するには`e1071::tune.knn`関数を用います。
+```{r}
+set.seed(seed)
+e1071::tune.knn(x = df_train, y = df_train_label, k = 1:10) %>% 
+  summary()
+```
+
+```{r}
+set.seed(seed)
+caret::train(x = df_train, y = df_train_label,
+             method = "knn", tuneGrid = expand.grid(k = c(1:10)),
+             trControl = caret::trainControl(method = "cv"))
+```
+
+　  
+
+## 本Case Studyに対する疑問
+本Case Studyでは、GPAを元にした成績評価（above or below）の分類を行うためにGPAの値もトレーニング、テストに用いているが、これはいかがなものであろうか？  
+試しにGPAを除いてトレーニングしてみると大きく異なる値になることが分かる。
+```{r, include=FALSE}
+# Traning Data
+(df_train <- df %>% 
+  dplyr::select(-id, -gpa) %>% 
+  dplyr::mutate_if(is.numeric, .funs = normalize) %>% 
+  dplyr::slice(1:150))
+
+# Test Data
+(df_test <- df %>% 
+  dplyr::select(-id, -gpa) %>% 
+  dplyr::mutate_if(is.numeric, .funs = normalize) %>% 
+  dplyr::slice(151:200))
+```
+
+```{r}
+set.seed(seed)
+gmodels::CrossTable(x = class::knn(train = df_train, test = df_test,
+                                   cl = df_train_label, k = 14),
+                    y = df_test_label, dnn = c("Predict", "Actual"),
+                    prop.chisq = FALSE, prop.c = FALSE, prop.t = FALSE)
+
+set.seed(seed)
+e1071::tune.knn(x = df_train, y = df_train_label, k = 1:30) %>% 
+  summary()
+```
+
+　  
+
+
+# 参考資料
+* [Lazy Learning - Classification Using Nearest Neighbors <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/courses/DSPA_notes/06_LazyLearning_kNN.html){target="_blank" title="University of Michigan: Data Science and Predictive Analytics (UMich HS650)"} 
+* [Assignment 6: Lazy Learning - Classification Using Nearest Neighbors <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/courses/DSPA_notes/06_LazyLearning_kNN_Assignment.html){target="_blank" title="University of Michigan: Data Science and Predictive Analytics (UMich HS650)"} 
+* [Python と R の違い (k-NN 法による分類器) <i class="fa fa-external-link"></i>](https://pythondatascience.plavox.info/python%E3%81%A8r%E3%81%AE%E9%81%95%E3%81%84/k-nn%E6%B3%95＊){target="_blank" title="Python でデータサイエンス"} 
+* [Variation on “How to plot decision boundary of a k-nearest neighbor classifier from Elements of Statistical Learning?” <i class="fa fa-external-link"></i>](https://stackoverflow.com/questions/31234621/variation-on-how-to-plot-decision-boundary-of-a-k-nearest-neighbor-classifier-f){target="_blank" title="stack overflow"}
+* [Chapter 3 Overview of Statistical Learning <i class="fa fa-external-link"></i>](https://dereksonderegger.github.io/578/3-overview-of-statistical-learning.html){target="_blank" title="STA 578 - Statistical Computing Notes"} 
+* [機械学習（caret package） <i class="fa fa-external-link"></i>](https://iisssseeiiii.hatenablog.com/entry/20101022/1287735709){target="_blank" title="おしゃスタ統計 〜統計学・機械学習・AI〜"} 
+
+　  
+
+<center> [Back](./mlwr_c03.html){title="第3章 遅延学習 - 最近傍法を使った分類"} </center>
+
+---
+<center> [CC BY-NC-SA 4.0 <i class="fa fa-external-link"></i>](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ja), Sampo Suzuki [`r format(Sys.time(), format = '%F(%Z)')`] </center>

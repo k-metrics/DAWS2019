@@ -38,7 +38,8 @@ navbar:
       icon: fa-info-circle
       menu:
         - text: "Introduction"
-        - text: "Lazy Learning"
+        - text: "VI. Lazy Learning"
+          href: hs650_C06.html
         - text: "Probabilistic Learning"
         - text: "Divide and Conqure"
         - text: "Forecasting Numeric Data"
