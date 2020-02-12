@@ -1,0 +1,251 @@
+---
+title: "VI. Lazy Learning"
+author-meta: "Sampo Suzuki"
+pagetitle: "DAWS2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+
+htmltools::tagList(rmarkdown::html_dependency_font_awesome())
+
+require(tidyverse)
+
+seed <- 300
+RNGversion("3.5.3")
+```
+
+　  
+　HS650 第6章 [Lazy Learning - Classification Using Nearest Neighbors <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/courses/DSPA_notes/06_LazyLearning_kNN.html){target="_blank" title="UMich HS650"} （以降、テキスト）では遅延学習を扱っています。ケーススタディでは若者の発育に関するものです。データは全て **シミュレーションにより作成されたデータ** が用いられています。データは上記のリンク先から入手してください。  
+
+　  
+
+## Packages and Datasets
+　本ページでは以下の追加パッケージを用いています。  
+　  
+
+Package      | Version   | Descriptions
+-------------|-----------|---------------------------------------------------
+class        | `r packageVersion('class')` | Functions for Classification
+caret        | `r packageVersion('caret')` | Classification and Regression Training
+skimr        | `r packageVersion('skimr')` | Compact and Flexible Summaries of Data
+tidyverse    | `r packageVersion('tidyverse')` | Easily Install and Load the 'Tidyverse'
+
+　  
+
+# ケーススタディ
+　データファイルは以下のファイルが提供されています。区切り文字が異なりますのでカンマ区切りのファイルを利用することをおすゝめします。  
+　  
+
+ファイル名                       | 区切り          | 備考
+---------------------------------|-----------------|----------------------------
+CaseStudy02_Boystown_Data.csv    | スペース区切り  | `read.csv` 関数にオプション指定で読み込み可
+CaseStudy02_Boystown_Data_V2.csv | カンマ区切り    | 
+
+　  
+
+```{r, echo=FALSE}
+x <- "./data/UMichi/CaseStudy02_Boystown_Data_V2.csv" %>% 
+  read.csv()
+```
+
+　データは全て数値データですが`id`は単なる識別番号なのでトレーニング（学習）やテスト（分類）には利用しませんので外す必要があります（`rowname` としても構いません）。なお、データフレーム型変数 `x` にデータファイルを読み込んであるものとしています。
+```{r}
+skimr::skim(x)
+```
+
+　  
+　各変量(フィーチャー）は以下のような内容になっています。詳細はデータファイルと共に提供されている Word のファイル（CaseStudy02_Boystown_V2.docx）を参照してください。  
+　  
+
+feature    | 内容                       | 取りうる値
+-----------|----------------------------|----------------------------
+id         | インスタンスの識別子       | N/A
+sex        | 性別                       | 1: male, 2: female
+gpa        | （米国の）成績評価値の平均 | 0: A, 1: B, ... 5: F(不可)
+Alcoholuse | 飲酒頻度                   | 0: drink everyday, ... 11: never drinked
+alcatt     | 家庭における飲酒許容       | 0: approve, ... 6: disapprove 
+dadjob     | 父親の就業                 | 1: yes, 2: no
+momjob     | 母親の就業                 | 1: yes, 2: no
+dadclose   | 父親との親密度             | 0: usually, ... 7: never
+momclose   | 母親との親密度             | 0: usually, ... 7: never
+larceny    | $50以上の窃盗行為          | 0: never, ... 4: many times  
+vandalism  | 破壊行為                   | 0: never, ... 4: many times
+
+　  
+　`id` を除く各変量は離散値（名義尺度または順序尺度）になっていますので、ダミーコーディングなどを利用して変換する必要がありそうです。ラベルとなるのは成績評価（`gpa`）です。
+
+　  
+
+## データの変換
+　性別と親の就業状況が `1/2` データですので `0/1` データに変換しておきます。就業状況は未就業の場合に `0` とするため少しややこしい計算をしています。
+```{r}
+df <- x %>% 
+  dplyr::mutate(sex = sex - 1L,                 # 0: male,  1: female
+                dadjob = -1L * (dadjob - 2L),   # 0: nojob, 1: has job
+                momjob = -1L * (momjob - 2L))   # 0: nojob, 1: has job
+df
+```
+
+　  
+
+## データの正規化
+　次に性別と就業状況を除く各変量に対して最小最大正規化を行います。『MLwR 2nd』の第3章と異なるのは欠損値対策などを入れている点です。  
+```{r}
+normalize <- function(x = NULL) {
+  if (!is.null(x)) {
+    return((x - min(x, na.rm = TRUE)) / diff(range(x, na.rm = TRUE)))
+  } else {
+    return(NA)
+  }
+}
+```
+
+　  
+　では、定義した正規化関数を用いて対象データセットの各変量を正規化しトレーニング用とテスト用のインスタンスとラベルを作成します。なお、前述のように `id` は単なる識別情報でトレーニングには不要ですので `rowname` に変換しておきます。
+　また、成績評価の平均（`gpa`）はラベルに利用しますので外しておきます。  
+　データの分割は単純に先頭の $150$ インスタンスをトレーニング用、残りの $50$ インスタンスをテスト用としています。
+```{r}
+df_train <- df %>% 
+  dplyr::mutate(id = as.character(id)) %>% 
+  dplyr::mutate_if(is.numeric, .funs = normalize) %>% 
+  dplyr::slice(1:150) %>% 
+  tibble::column_to_rownames(var = "id")
+df_train
+
+df_test <- df %>% 
+  dplyr::mutate(id = as.character(id)) %>% 
+  dplyr::mutate_if(is.numeric, .funs = normalize) %>% 
+  dplyr::slice(151:200) %>% 
+  tibble::column_to_rownames(var = "id")
+df_test
+```
+
+　  
+
+## ラベルの作成
+　前述のように成績評価（`gpa`）をラベルとします。今回は「成績上位（above = A, B, C）」と「成績下位（below = D, E, F）」に二分割します。
+```{r}
+df_train_label <- df %>% 
+  dplyr::select(gpa) %>% 
+  dplyr::slice(1:150) %>% 
+  dplyr::mutate(grade = gpa %in% c(3, 4, 5) %>% 
+                  as.factor() %>%
+                  forcats::fct_recode(`成績下位` = "TRUE", `成績上位` = "FALSE")) %>% 
+  .$grade
+df_train_label
+
+df_test_label <- df %>% 
+  dplyr::select(gpa) %>% 
+  dplyr::slice(151:200) %>% 
+  dplyr::mutate(grade = gpa %in% c(3, 4, 5) %>% 
+                  as.factor() %>%
+                  forcats::fct_recode(`成績下位` = "TRUE", `成績上位` = "FALSE")) %>% 
+  .$grade
+df_test_label
+```
+
+
+
+## モデルの作成と評価
+　`class::knn`関数を用いてトレーニングを行い、その結果をクロス集計により評価します。なお、近傍数 $k$ はトレーニング用インスタンス数の平方根（`r sqrt(150)`）に最も近い整数とします。
+```{r}
+set.seed(seed)
+result <- class::knn(train = df_train, test = df_test, cl = df_train_label,
+                     k = 12) %>% 
+  caret::confusionMatrix(reference = df_test_label)
+result
+```
+
+　評価の結果、正解率（Accuracy）を見る限り $`r result$overall[1]`$ とまずまずのモデルだと思われます。  
+
+　  
+
+## パフォーマンスの改善
+　パフォーマンス改善を模索するために各フィーチャーをZスコア化してみます。ラベルデータはそのまま用います。
+```{r}
+df_train <- df %>% 
+  dplyr::mutate(id = as.character(id)) %>% 
+  dplyr::mutate_if(is.numeric, .funs = scale) %>% 
+  dplyr::slice(1:150) %>% 
+  tibble::column_to_rownames(var = "id")
+df_train
+
+df_test <- df %>% 
+  dplyr::mutate(id = as.character(id)) %>% 
+  dplyr::mutate_if(is.numeric, .funs = scale) %>% 
+  dplyr::slice(151:200) %>% 
+  tibble::column_to_rownames(var = "id")
+df_test
+```
+
+　正解率（Accuracy）が $`r result$overall[1]`$ と大差は出ませんでした。
+```{r}
+set.seed(seed)
+result <- class::knn(train = df_train, test = df_test, cl = df_train_label,
+                     k = 12) %>% 
+  caret::confusionMatrix(reference = df_test_label)
+result
+```
+
+　  
+
+## 最適な近傍数
+　では、近傍数（$k$）はいくつが最適なのでしょうか？交差検証（Cross Varidation）で確認してみます。
+```{r}
+set.seed(seed)
+result <- caret::train(x = df_train, y = df_train_label,
+                      method = "knn", tuneGrid = expand.grid(k = c(1:20)),
+                      trControl = caret::trainControl(method = "cv"))
+result
+```
+
+```{r}
+result %>% ggplot2::ggplot()
+```
+
+　$k = `r result$bestTune$k`$ がベストパラメータとでました。  
+
+　  
+
+<!-- # ケーススタディの矛盾点 -->
+<!-- 　テキストのケーススタディではラベルデータの扱いにおいて、いくつかの矛盾点があります。 -->
+
+<!-- 1. ラベルデータを正規化している -->
+<!-- 1. ラベルの作成方法とモデリング結果が異なる -->
+
+<!-- 　まず、「3.3 Normalizing Data」において最小最大正規化関数（`normalize`）を定義した後に以下のコードでラベルを除く変量を正規化しています。ラベルとして外しているのは $11$ 番目の 破壊行為（`vandalism`）変量です。 -->
+<!-- ```{r, eval=FALSE} -->
+<!-- boystown_n<-as.data.frame(lapply(boystown[-11], normalize)) -->
+<!-- ``` -->
+<!-- 　   -->
+<!-- 　次に 「3.4 Data preparation - creating training and test datasets」において、$11$ 番目の破壊行為（`vandalism`）変量をラベルにしています。   -->
+<!-- 　 -->
+<!-- > Then let’s extract the labels or classes (column=11, Delinquency in terms of reoccurring vandalism) for our two subsets. -->
+
+<!-- 　   -->
+<!-- ```{r, eval=FALSE} -->
+<!-- bt_train_labels<-boystown[1:150, 11] -->
+<!-- bt_test_labels<-boystown[151:200, 11] -->
+<!-- ``` -->
+
+<!-- 　   -->
+<!-- 　このようにラベルとして破壊行為（`vandalism`）を作成しているにも関わらず、「3.6 Step 4 - Evaluating model performance」においてラベルとして利用されているのは「3.2 Step 2: Exploring and preparing the data」で二値化した成績評価（`gpa`）です。「3.7 Step 5 - Improving model performance」以降でもラベルは二値化した成績評価（`gpa`）を用いていますので、「3.3」ならびに「3.4」のコードは不適切と考え、本ページではコードを修正しています。   -->
+
+　  
+
+# 参考資料
+* [Lazy Learning - Classification Using Nearest Neighbors <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/courses/DSPA_notes/06_LazyLearning_kNN.html){target="_blank" title="University of Michigan: Data Science and Predictive Analytics (UMich HS650)"} 
+* [Assignment 6: Lazy Learning - Classification Using Nearest Neighbors <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/courses/DSPA_notes/06_LazyLearning_kNN_Assignment.html){target="_blank" title="University of Michigan: Data Science and Predictive Analytics (UMich HS650)"} 
+* [Python と R の違い (k-NN 法による分類器) <i class="fa fa-external-link"></i>](https://pythondatascience.plavox.info/python%E3%81%A8r%E3%81%AE%E9%81%95%E3%81%84/k-nn%E6%B3%95＊){target="_blank" title="Python でデータサイエンス"} 
+* [Variation on “How to plot decision boundary of a k-nearest neighbor classifier from Elements of Statistical Learning?” <i class="fa fa-external-link"></i>](https://stackoverflow.com/questions/31234621/variation-on-how-to-plot-decision-boundary-of-a-k-nearest-neighbor-classifier-f){target="_blank" title="stack overflow"}
+* [Chapter 3 Overview of Statistical Learning <i class="fa fa-external-link"></i>](https://dereksonderegger.github.io/578/3-overview-of-statistical-learning.html){target="_blank" title="STA 578 - Statistical Computing Notes"} 
+* [機械学習（caret package） <i class="fa fa-external-link"></i>](https://iisssseeiiii.hatenablog.com/entry/20101022/1287735709){target="_blank" title="おしゃスタ統計 〜統計学・機械学習・AI〜"} 
+
+　  
+
+<center> [Back](./mlwr_c03.html){title="第3章 遅延学習 - 最近傍法を使った分類"} </center>
+
+---
+<center> [CC BY-NC-SA 4.0 <i class="fa fa-external-link"></i>](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ja), Sampo Suzuki [`r format(Sys.time(), format = '%F(%Z)')`] </center>
