@@ -52,7 +52,9 @@ navbar:
     - text: "Case Study"
       icon: fa-info-circle
       menu:
+        - text: "はじめに"
         - text: "k近傍法"
+          href: cc_C01.html
   right:
     - icon: fa-github
       menu:

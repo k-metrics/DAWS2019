@@ -1,0 +1,537 @@
+---
+title: "Case Study - knn"
+author-meta: "Sampo Suzuki"
+pagetitle: "DAWS2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+
+htmltools::tagList(rmarkdown::html_dependency_font_awesome())
+
+require(tidyverse)
+
+seed <- 300
+RNGversion("3.5.3")
+```
+
+　$k$ 近傍法は多変量のデータを分類するのに向いているアルゴリズムですので、様々な使い道が考えられます。本ページはそれらをまとめています。  
+
+
+1. プロダクトメトリクスを用いた欠陥予測（vs ロジスティック回帰分析）に関するケーススタディ [<i class="fa fa-external-link-square"></i>](#s02) 
+1. 分類結果を可視化して確認するケーススタディ [<i class="fa fa-external-link-square"></i>](#s03) 
+1. kの値を変化させた場合の分類境界を可視化して確認するケーススタディ [<i class="fa fa-external-link-square"></i>](#s04) 
+分類仮定の可視化
+
+　  
+
+## Packages and Datasets
+　本ページでは以下の追加パッケージを用いています。  
+　  
+
+Package      | Version   | Descriptions
+-------------|-----------|---------------------------------------------------
+class        | `r packageVersion('class')` | Functions for Classification
+caret        | `r packageVersion('caret')` | Classification and Regression Training
+skimr        | `r packageVersion('skimr')` | Compact and Flexible Summaries of Data
+tidyverse    | `r packageVersion('tidyverse')` | Easily Install and Load the 'Tidyverse'
+
+　  
+
+
+利用しているデータセットは各セクションで確認してください。  
+　  
+
+
+# 欠陥が生じやすいモジュールを予測する {#s02}
+[『データ指向のソフトウェア品質マネジメント』 <i class="fa fa-external-link"></i>](http://www.juse-p.co.jp/cgi-bin/html.pl5?i=ISBN978-4-8171-9447-3){target="_blank" title=""} （通称デート本）の第4.3節にある「欠陥が生じやすいモジュールの予測」のデータを用いてk近傍法による欠陥予測をしてみます。ちなみにデート本ではロジスティック回帰分析によるモデルを構築しています。なお、利用するデータはデート本の案内を参考にダウンロードしてください。  
+
+　  
+
+## 因子化と正規化
+予測を行う前にで欠陥の有無を表す`Modify`（修正有無）のデータを因子化（ラベル化）し、各数値を正規化しておきます。各変量とも右に歪んだ分布なので、ここでは最小最大正規化を行います。
+```{r, echo=FALSE}
+normalize <- function(x = NULL) {
+  if (!is.null(x)) {
+    return((x - min(x)) / diff(range(x)))
+    # return(scale(x))
+  } else {
+    return(NA)
+  }
+}
+
+x <- "./data/dsqm/4-3-data.xls" %>% 
+  readxl::read_xls(sheet = 1) %>% 
+  dplyr::mutate(Modify = as.logical(Modify)) %>% 
+  dplyr::mutate_if(is.numeric, normalize)
+x
+
+seed <- 1438
+```
+
+　  
+
+## データの作成
+トレーニングデータとテストデータを作成します。対象となるデータのインスタンス数が`r length(x$Modify)`ですので、その内、ランダムに選択した$75\%$インスタンスをトレーニングデータとし、残りをテストデータとします。  
+
+　  
+
+### トレーニングデータ
+```{r, message=FALSE}
+(train <- x %>% 
+  dplyr::sample_frac(size = 0.75))
+```
+
+　  
+
+### テストデータ（予測対象）
+```{r, message=FALSE}
+(test <- train %>% 
+  dplyr::anti_join(x, .))
+```
+
+　  
+
+## トレーニングと予測
+準備したトレーニングデータとテストデータを用いて予測してみます。ここではk値をトレーニングデータの数の平方根（`r as.integer(sqrt(nrow(train)))`）としています。
+```{r}
+k <- as.integer(sqrt(nrow(train)))
+(knn_model <- class::knn(train = train[, -6], test = test[, -6],
+                         cl = train$Modify, k = k)) %>% 
+  gmodels::CrossTable(x = ., y = test$Modify, dnn = c("Predict", "Actual"),
+                      prop.chisq = FALSE, prop.r = TRUE, prop.t = FALSE)
+```
+
+なお、`TRUE`がリリース後に欠陥修正あり（バグありで出荷）であることに注意してください。
+
+```{r}
+data.frame(predict = as.vector(knn_model),
+           actual = as.vector(test$Modify)) %>% 
+  dplyr::mutate(predict = as.logical(predict),
+                notmatch = xor(predict, actual))
+```
+
+　  
+
+## 交差検証（e1071パケージ）
+k値を1～30の範囲で`e1071`パッケージを使って交差検証してみると最適値は以下になります。
+```{r}
+set.seed(seed)
+k <- e1071::tune.knn(x = train[, -6], y = train[, 6], k = c(1:30))
+k %>% 
+  summary()
+```
+
+```{r}
+set.seed(seed)
+(knn_model <- class::knn(train = train[, -6], test = test[, -6],
+                         cl = train$Modify, k = k$best.parameters)) %>% 
+  gmodels::CrossTable(x = ., y = test$Modify, dnn = c("Predict", "Actual"),
+                      prop.chisq = FALSE, prop.r = TRUE, prop.t = FALSE)
+```
+
+```{r}
+data.frame(predict = as.vector(knn_model),
+           actual = as.vector(test$Modify)) %>% 
+  dplyr::mutate(predict = as.logical(predict),
+                notmatch = xor(predict, actual))
+```
+
+　  
+
+## 交差検証（caretパッケージ）
+次にk値を同様の範囲で`caret`パッケージを使って交差検証してみます。
+```{r}
+set.seed(seed)
+(knnfit <- caret::train(x[, -6], as.factor(as.integer(x$Modify)),
+             method = "knn", tuneGrid = expand.grid(k = c(1:30)),
+             trControl = caret::trainControl(method = "cv")))
+
+knnfit %>% 
+  ggplot2::ggplot()
+```
+
+```{r}
+class::knn(train = train[, -6], test = test[, -6],
+           cl = train$Modify, k = 3) %>% 
+  gmodels::CrossTable(x = ., y = test$Modify, dnn = c("Predict", "Actual"),
+                      prop.chisq = FALSE, prop.r = TRUE, prop.t = FALSE)
+```
+
+　  
+
+## まとめ
+デート本のロジスティック回帰分析での適合率^1^は$LCOM \gt 0$である場合は約$83\%$で、$LCOM = 0$の場合は約$55\%$でした。一方、k近傍法では$LCOM$を条件分けすることなく約$82\%$でした。ただし、バグがないと予測したにもかかわらずバグであるというものが出ていますので、k近傍法の予測結果だけで判断するとバグを流出させる可能性があります。また、k値をいくつに設定すべきなのかは難しいところがあります。ラベルが二種の場合にはタイがでない奇数をkの値にする方が好ましいので交差検証の際も奇数だけを指定してみるのも手かもしれません。  
+
+k近傍法は手間がかからずに相応の予測（分類）ができることを考えると判断材料の一つとして採用しても良いのではないかと考えます。  
+
+^1^ 適合率：デート本ではバグありと予測されたモジュールの内、実際にバグのあった割合を適合率と呼んでいます。クロス集計表では"Predict(TRUE)/Actual(TRUE)"の上段の割合が適合率です。
+
+　  
+
+# 可視化してみる {#s03}
+k近傍法は強力に見えますが、一体、どのようは判別処理を行っているのでしょう？可視化することで分類（予測）処理のイメージを把握してみましょう。  
+　  
+
+## 品種の分類（予測）
+では、`iris`データセットを用いて、テストデータがどの品種に該当するのかを分類してみます。`iris`データセットはご存知のように三品種、各50、計150のインスタンスからなるデータセットです。その内、ランダムに抽出した145のインスタンスをトレーニングデータとして用います。
+```{r}
+set.seed(2113)
+trainset <- iris %>% dplyr::sample_n(size = 145) %>% dplyr::arrange(Species)
+trainset %>% 
+  ggplot2::ggplot(ggplot2::aes(x = Sepal.Width, y = Sepal.Length,
+                               colour = Species, shape = Species)) + 
+    ggplot2::geom_point() + 
+    ggplot2::scale_color_brewer(palette = "Dark2")
+```
+
+残る以下の5のインスタンスをテストデータとし各インスタンスがどの品種に分類されるのかをk近傍法を用いて計算します。
+```{r}
+(testset <- (answer <- iris %>% dplyr::anti_join(trainset)) %>%
+              dplyr::select(-Species))
+```
+
+今回は`kknn::kknn`関数でトレーニングを行いテストデータの各インスタンスを分類します。なお、`k`値はデフォルト値を使っています。
+```{r iris_results}
+knn.model <- kknn::kknn(Species ~ ., train = trainset, test = testset, k = 7)
+summary(knn.model)
+predict <- fitted(knn.model)
+```
+
+　  
+
+### 参考
+`class::knn`関数を用いる場合は以下のように因子データを除いたデータを学習データ、テストデータとして渡す必要があります。
+```
+trainset
+(testset <- (answer <- iris %>% dplyr::anti_join(trainset)))
+
+predict <- class::knn(train = trainset[, -5], test = testset[, -5],
+                      cl = trainset$Species, k = 7, prob = TRUE)
+```
+
+　  
+
+## 分類（予測）結果を可視化する
+次に分類結果を可視化して確認してみます。ラベルは「正解/予測」の順に表記されています。  
+
+### Sepal（萼片）
+```{r, echo=FALSE}
+answer %>% 
+  dplyr::mutate(flag = "testset") %>% 
+  dplyr::mutate(label = dplyr::if_else(!is.na(flag),
+                                       paste(Species, predict, sep = "/"),
+                                       NA_character_)) %>% 
+  dplyr::bind_rows(trainset, .) %>% 
+  dplyr::mutate(flag = dplyr::if_else(is.na(flag), as.character(Species),
+                                      flag)) %>% 
+  dplyr::mutate(flag = forcats::fct_inorder(flag)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = Sepal.Width, y = Sepal.Length,
+                               colour = flag, shape = flag)) +
+    ggplot2::geom_point() + 
+    ggplot2::scale_color_brewer(palette = "Dark2") + 
+    ggrepel::geom_label_repel(ggplot2::aes(label = label), alpha = 0.65)
+```
+
+　  
+
+### Petal（花弁）
+```{r, echo=FALSE}
+answer %>% 
+  dplyr::mutate(flag = "testset") %>% 
+  dplyr::mutate(label = dplyr::if_else(!is.na(flag),
+                                       paste(Species, predict, sep = "/"),
+                                       NA_character_)) %>% 
+  dplyr::bind_rows(trainset, .) %>% 
+  dplyr::mutate(flag = dplyr::if_else(is.na(flag), as.character(Species),
+                                      flag)) %>% 
+  dplyr::mutate(flag = forcats::fct_inorder(flag)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = Petal.Width, y = Petal.Length,
+                               colour = flag, shape = flag)) +
+    ggplot2::geom_point() + 
+    ggplot2::scale_color_brewer(palette = "Dark2") + 
+    ggrepel::geom_label_repel(ggplot2::aes(label = label), alpha = 0.65)
+```
+
+　  
+
+## 架空のデータを分類してみる
+次に以下の架空のデータを用いて分類してみます。
+```{r, echo=FALSE}
+(testset <- data.frame(Sepal.Length = c(6.3, 5.9, 6.3, 6.2, 4.7, 4.3),
+                      Sepal.Width = c(3.3, 3.0, 3.3, 2.8, 3.1, 3.1),
+                      Petal.Length = c(4.5, 4.5, 5.3, 5.3, 1.4, 1.3),
+                      Petal.Width = c(1.5, 1.4, 2.3, 2.5, 0.2, 0.1),
+                      Species = c("versicolor", "versicolor",
+                                  "virginica", "virginica",
+                                  "setosa", "setosa")))
+```
+
+```{r, echo=FALSE}
+knn.model <- kknn::kknn(Species ~ ., train = trainset, test = testset[, -5])
+summary(knn.model)
+
+# 予測（分類)結果
+predict <- fitted(knn.model)
+
+testset %>% 
+  dplyr::mutate(flag = "testset") %>% 
+  dplyr::mutate(label = dplyr::if_else(!is.na(flag),
+                                       paste(Species, predict, sep = "/"),
+                                       NA_character_)) %>% 
+  dplyr::bind_rows(trainset, .) %>% 
+  dplyr::mutate(flag = dplyr::if_else(is.na(flag), as.character(Species),
+                                      flag)) %>% 
+  dplyr::mutate(flag = forcats::fct_inorder(flag)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = Sepal.Width, y = Sepal.Length,
+                               colour = flag, shape = flag)) +
+    ggplot2::geom_point() + 
+    ggplot2::scale_color_brewer(palette = "Dark2") + 
+    ggrepel::geom_label_repel(ggplot2::aes(label = label), alpha = 0.65) + 
+    ggplot2::labs(title = "Sepal")
+
+testset %>% 
+  dplyr::mutate(flag = "testset") %>% 
+  dplyr::mutate(label = dplyr::if_else(!is.na(flag),
+                                       paste(Species, predict, sep = "/"),
+                                       NA_character_)) %>% 
+  dplyr::bind_rows(trainset, .) %>% 
+  dplyr::mutate(flag = dplyr::if_else(is.na(flag), as.character(Species),
+                                      flag)) %>% 
+  dplyr::mutate(flag = forcats::fct_inorder(flag)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = Petal.Width, y = Petal.Length,
+                               colour = flag, shape = flag)) +
+    ggplot2::geom_point() + 
+    ggplot2::scale_color_brewer(palette = "Dark2") + 
+    ggrepel::geom_label_repel(ggplot2::aes(label = label), alpha = 0.65) + 
+    ggplot2::labs(title = "Petal")
+```
+
+　  
+
+# 分類境界を可視化する {#s04}
+分割領域を可視化するには分割領域のメッシュ全体をテストデータとして用います。ただし、下記のコードでは可視化に用いる`Sepal`のデータのみで学習を行っているので、`Petal`のデータも用いて分類した場合と結果が異なっていると考えてください。
+```{r}
+set.seed(2113)
+# 学習用データの作成
+train_df <- iris %>% 
+  dplyr::sample_n(size = 145) %>% 
+  dplyr::arrange(Species)
+# 学習用データの因子分類（ラベル）
+cl <- train_df$Species
+
+# テスト用データ（描画範囲の全グリッドデータ）の作成
+train <- train_df %>% 
+  dplyr::select(Sepal.Length, Sepal.Width) %>% as.matrix()
+test <- expand.grid(x = seq(min(train[, 1]), max(train[, 1]), by = 0.1),
+                    y = seq(min(train[, 2]), max(train[, 2]), by = 0.1))
+
+# 学習と予測
+set.seed(2113)
+classif <- class::knn(train, test, cl, k = 7, prob = TRUE)
+prob <- attr(classif, "prob")
+
+(df <- dplyr::bind_rows(
+  dplyr::mutate(test, prob = prob, cls = "versicolor",
+                prob_cls = ifelse(classif == cls, 1, 0)),
+  dplyr::mutate(test, prob = prob, cls = "virginica",
+                prob_cls = ifelse(classif == cls, 1, 0)),
+  dplyr::mutate(test, prob = prob, cls = "setosa",
+                prob_cls = ifelse(classif == cls, 1, 0)))) %>% 
+  ggplot2::ggplot() +
+  # テスト用データの分類結果
+    ggplot2::geom_point(ggplot2::aes(x = x, y = y, col = cls),
+                        data = dplyr::mutate(test, cls = classif),
+                        size = 0.1) +
+  # 分類境界
+    ggplot2::geom_contour(ggplot2::aes(x = x, y = y, z = prob_cls,
+                                       group = cls, color = cls),
+                          bins = 2, data = df, size = 0.25) + 
+  # トレーニング用データ
+    ggplot2::geom_point(ggplot2::aes(x = x, y = y, col = cls, shape = cls),
+                        data = data.frame(x = train[, 1],
+                                          y = train[, 2], cls = cl),
+                        size = 1.75) +
+    ggplot2::scale_color_brewer(palette = "Dark2") + 
+    ggplot2::coord_flip() + 
+    ggplot2::labs(x = "Sepal.Length", y = "Sepal.Width",
+                  colour = "Species", shape = "Species")
+```
+
+大きな点がトレーニングに用いたデータ、小さな点がテスト用データの分類結果になります。
+
+　  
+
+## k値を変えてみる
+交差検証に基づく（汎化性能が高い）k値とデフォルト値を半分にしたk値で分類がどのように変わるかを見て見ます。
+```{r}
+set.seed(2113)
+cv <- caret::train(x = train, y = cl,
+                   method = "knn", metric = "Accuracy",
+                   tuneGrid = expand.grid(k = 1:30),
+                   trControl = caret::trainControl(method = "cv"))
+
+# 学習と予測
+set.seed(2113)
+classif <- class::knn(train, test, cl, k = cv$finalModel$k, prob = TRUE)
+prob <- attr(classif, "prob")
+
+g21 <- (df <- dplyr::bind_rows(
+  dplyr::mutate(test, prob = prob, cls = "versicolor",
+                prob_cls = ifelse(classif == cls, 1, 0)),
+  dplyr::mutate(test, prob = prob, cls = "virginica",
+                prob_cls = ifelse(classif == cls, 1, 0)),
+  dplyr::mutate(test, prob = prob, cls = "setosa",
+                prob_cls = ifelse(classif == cls, 1, 0)))) %>% 
+  ggplot2::ggplot() +
+  # テスト用データの分類結果
+    ggplot2::geom_point(ggplot2::aes(x = x, y = y, col = cls),
+                        data = dplyr::mutate(test, cls = classif),
+                        size = 0.1) +
+  # 分類境界
+    ggplot2::geom_contour(ggplot2::aes(x = x, y = y, z = prob_cls,
+                                       group = cls, color = cls),
+                          bins = 2, data = df, size = 0.25) + 
+  # トレーニング用データ
+    ggplot2::geom_point(ggplot2::aes(x = x, y = y, col = cls, shape = cls),
+                        data = data.frame(x = train[, 1],
+                                          y = train[, 2], cls = cl),
+                        size = 1.75) +
+    ggplot2::scale_color_brewer(palette = "Dark2") + 
+    ggplot2::coord_flip() + 
+    ggplot2::labs(x = "Sepal.Length", y = "Sepal.Width",
+                  colour = "Species", shape = "Species",
+                  title = paste0("k = ", cv$finalModel$k))
+```
+
+```{r}
+set.seed(2113)
+
+# 学習と予測
+set.seed(2113)
+classif <- class::knn(train, test, cl, k = 3, prob = TRUE)
+prob <- attr(classif, "prob")
+
+g03 <- (df <- dplyr::bind_rows(
+  dplyr::mutate(test, prob = prob, cls = "versicolor",
+                prob_cls = ifelse(classif == cls, 1, 0)),
+  dplyr::mutate(test, prob = prob, cls = "virginica",
+                prob_cls = ifelse(classif == cls, 1, 0)),
+  dplyr::mutate(test, prob = prob, cls = "setosa",
+                prob_cls = ifelse(classif == cls, 1, 0)))) %>% 
+  ggplot2::ggplot() +
+  # テスト用データの分類結果
+    ggplot2::geom_point(ggplot2::aes(x = x, y = y, col = cls),
+                        data = dplyr::mutate(test, cls = classif),
+                        size = 0.1) +
+  # 分類境界
+    ggplot2::geom_contour(ggplot2::aes(x = x, y = y, z = prob_cls,
+                                       group = cls, color = cls),
+                          bins = 2, data = df, size = 0.25) + 
+  # トレーニング用データ
+    ggplot2::geom_point(ggplot2::aes(x = x, y = y, col = cls, shape = cls),
+                        data = data.frame(x = train[, 1],
+                                          y = train[, 2], cls = cl),
+                        size = 1.75) +
+    ggplot2::scale_color_brewer(palette = "Dark2") + 
+    ggplot2::coord_flip() + 
+    ggplot2::labs(x = "Sepal.Length", y = "Sepal.Width",
+                  colour = "Species", shape = "Species",
+                  title = paste0("k = 3"))
+```
+
+```{r, fig.height=10}
+gridExtra::grid.arrange(g21, g03, nrow = 2)
+```
+
+　  
+
+k値が小さい方がテストデータに対して敏感（ピーキー、ハイゲイン）で、k値が大きい方がテストデータに対して鈍感（ロバスト）であることが分かります。未知のデータを考えるとあまり、ハイゲインにならないk値を選択すべきだと考えます。
+
+　  
+
+# 分類過程を可視化する
+最近傍法では分類結果のみが出力されるので、どの変量がどの程度、分類に寄与しているのかが分かりません。そこで、分類結果に対してどの変量がどの程度の寄与をしているか知るための`iBreakDown`パッケージが便利です。
+
+　  
+
+## iBreakDown
+`iBreakDown`パッケージはR-bloggersで2019年4月の注目パッケージとして取り上げられたパッケージの一つです。例えば`caret::knn3Train`関数による分類結果は以下のようになりますが、この結果に対して各変量がどの程度寄与しているのかが分かりません。
+```{r, message=FALSE}
+
+set.seed(2113)
+trainset <- iris %>% 
+  dplyr::sample_n(size = 145) %>% 
+  dplyr::arrange(Species)
+testset <- iris %>% 
+  dplyr::anti_join(trainset)
+
+caret::knn3Train(trainset[, -5], testset[, -5], cl = trainset[, 5], k = 7)
+```
+
+
+`iBreakDown`パッケージを用いると以下のように可視化することが可能になります。
+```{r}
+knn3_model <- caret::knn3(Species ~ ., data = trainset, k = 7)
+
+knn3_model %>% 
+  iBreakDown::local_attributions(data = testset[, -5],
+                                 new_observation = testset[1, ]) %>% 
+  plot()
+
+knn3_model %>% 
+  iBreakDown::local_attributions(data = testset[, -5],
+                                 new_observation = testset[2, ]) %>% 
+  plot()
+
+knn3_model %>% 
+  iBreakDown::local_attributions(data = testset[, -5],
+                                 new_observation = testset[3, ]) %>% 
+  plot()
+
+knn3_model %>% 
+  iBreakDown::local_attributions(data = testset[, -5],
+                                 new_observation = testset[4, ]) %>% 
+  plot()
+
+knn3_model %>% 
+  iBreakDown::local_attributions(data = testset[, -5],
+                                 new_observation = testset[5, ]) %>% 
+  plot()
+```
+
+可視化すると面白いは面白いのですが、k近傍法における`intercept`とは何を意味しているのでしょうか？可視化結果を見る限り`caret::knn3`関数は他のk近傍法の関数の実装とは異なり単に多数決で決めているようには見えません。Rにおけるk近傍法の関数は様々なパッケージが提供していますので、その特徴を把握してから使った方が良さそうです。なお、`iBreakDown`パッケージはk-NN以外にSVMやrandomForest, glmなどの結果も可視化できる便利なパッケージです。
+
+　  
+
+## caret
+`caret`パッケージにある`caret::varImp`関数を用いると分類の際に各変量の寄与具合を可視化するための情報を読み出すことができます。`Petal`（花弁）の情報は全ての品種の分類で使われている一方で、`Sepal.Width`（萼片の幅）は、`virginica`を分類する際にはまったく使われていないことが読み取れます。
+```{r}
+caret::train(trainset[, -5], trainset[, 5], method = "knn") %>% 
+  caret::varImp() %>% 
+  .$importance %>% 
+  tibble::rownames_to_column() %>% 
+  tidyr::gather(key = "key", value = "importance", -rowname) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = importance, y = rowname,
+                               colour = key, shape = key, size = key)) + 
+    ggplot2::geom_point(position = "dodge") +
+    ggplot2::labs(y = "")
+```
+
+　  
+
+# 参考資料
+* [Lazy Learning - Classification Using Nearest Neighbors <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/courses/DSPA_notes/06_LazyLearning_kNN.html){target="_blank" title="University of Michigan: Data Science and Predictive Analytics (UMich HS650)"} 
+* [Assignment 6: Lazy Learning - Classification Using Nearest Neighbors <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/courses/DSPA_notes/06_LazyLearning_kNN_Assignment.html){target="_blank" title="University of Michigan: Data Science and Predictive Analytics (UMich HS650)"} 
+* [Python と R の違い (k-NN 法による分類器) <i class="fa fa-external-link"></i>](https://pythondatascience.plavox.info/python%E3%81%A8r%E3%81%AE%E9%81%95%E3%81%84/k-nn%E6%B3%95＊){target="_blank" title="Python でデータサイエンス"} 
+* [Variation on “How to plot decision boundary of a k-nearest neighbor classifier from Elements of Statistical Learning?” <i class="fa fa-external-link"></i>](https://stackoverflow.com/questions/31234621/variation-on-how-to-plot-decision-boundary-of-a-k-nearest-neighbor-classifier-f){target="_blank" title="stack overflow"}
+* [Chapter 3 Overview of Statistical Learning <i class="fa fa-external-link"></i>](https://dereksonderegger.github.io/578/3-overview-of-statistical-learning.html){target="_blank" title="STA 578 - Statistical Computing Notes"} 
+* [機械学習（caret package） <i class="fa fa-external-link"></i>](https://iisssseeiiii.hatenablog.com/entry/20101022/1287735709){target="_blank" title="おしゃスタ統計 〜統計学・機械学習・AI〜"} 
+
+　  
+
+<center> [Back](./mlwr_c03.html){title="第3章 遅延学習 - 最近傍法を使った分類"} </center>
+
+---
+<center> [CC BY-NC-SA 4.0 <i class="fa fa-external-link"></i>](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ja), Sampo Suzuki [`r format(Sys.time(), format = '%F(%Z)')`] </center>
