@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, eval = FALSE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
 
 htmltools::tagList(rmarkdown::html_dependency_font_awesome())
 
@@ -18,7 +18,6 @@ RNGversion("3.5.3")
 
 　  
 　HS650 第6章 [Lazy Learning - Classification Using Nearest Neighbors <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/courses/DSPA_notes/06_LazyLearning_kNN.html){target="_blank" title="UMich HS650"} （以降、テキスト）では遅延学習を扱っています。ケーススタディでは若者の発育に関するものです。データは全て **シミュレーションにより作成されたデータ** が用いられています。データは上記のリンク先から入手してください。  
-　ケーススタディにはコードの説明とモデリング評価に矛盾が見受けられますので、その部分を修正して解いています。そのため結果が異なっている点に注意してください。
 
 　  
 
@@ -30,20 +29,18 @@ Package      | Version   | Descriptions
 -------------|-----------|---------------------------------------------------
 class        | `r packageVersion('class')` | Functions for Classification
 caret        | `r packageVersion('caret')` | Classification and Regression Training
-e1071        | `r packageVersion('e1071')` | Misc Functions of the Department of Statistics, Probability Theory Group (Formerly: E1071), TU Wien
 skimr        | `r packageVersion('skimr')` | Compact and Flexible Summaries of Data
-tidymodels   | `r packageVersion('tidymodels')` | Easily Install and Load the 'Tidymodels' Packages
 tidyverse    | `r packageVersion('tidyverse')` | Easily Install and Load the 'Tidyverse'
 
 　  
 
 # ケーススタディ
 　データファイルは以下のファイルが提供されています。区切り文字が異なりますのでカンマ区切りのファイルを利用することをおすゝめします。  
-
 　  
+
 ファイル名                       | 区切り          | 備考
 ---------------------------------|-----------------|----------------------------
-CaseStudy02_Boystown_Data.csv    | スペース区切り  | `read.csv` 関数で読みこみ可
+CaseStudy02_Boystown_Data.csv    | スペース区切り  | `read.csv` 関数にオプション指定で読み込み可
 CaseStudy02_Boystown_Data_V2.csv | カンマ区切り    | 
 
 　  
@@ -58,7 +55,9 @@ x <- "./data/UMichi/CaseStudy02_Boystown_Data_V2.csv" %>%
 skimr::skim(x)
 ```
 
-　各変量(フィーチャー）は以下のような内容になっています。詳細はデータファイルと共に提供されている Word のファイル（CaseStudy02_Boystown_V2.docx）を参照してください。
+　  
+　各変量(フィーチャー）は以下のような内容になっています。詳細はデータファイルと共に提供されている Word のファイル（CaseStudy02_Boystown_V2.docx）を参照してください。  
+　  
 
 feature    | 内容                       | 取りうる値
 -----------|----------------------------|----------------------------
@@ -109,7 +108,6 @@ normalize <- function(x = NULL) {
 　データの分割は単純に先頭の $150$ インスタンスをトレーニング用、残りの $50$ インスタンスをテスト用としています。
 ```{r}
 df_train <- df %>% 
-  dplyr::select(-gpa) %>% 
   dplyr::mutate(id = as.character(id)) %>% 
   dplyr::mutate_if(is.numeric, .funs = normalize) %>% 
   dplyr::slice(1:150) %>% 
@@ -117,7 +115,6 @@ df_train <- df %>%
 df_train
 
 df_test <- df %>% 
-  dplyr::select(-gpa) %>% 
   dplyr::mutate(id = as.character(id)) %>% 
   dplyr::mutate_if(is.numeric, .funs = normalize) %>% 
   dplyr::slice(151:200) %>% 
@@ -154,96 +151,87 @@ df_test_label
 ## モデルの作成と評価
 　`class::knn`関数を用いてトレーニングを行い、その結果をクロス集計により評価します。なお、近傍数 $k$ はトレーニング用インスタンス数の平方根（`r sqrt(150)`）に最も近い整数とします。
 ```{r}
+set.seed(seed)
 result <- class::knn(train = df_train, test = df_test, cl = df_train_label,
                      k = 12) %>% 
   caret::confusionMatrix(reference = df_test_label)
 result
 ```
 
-　評価の結果、正解率（Accuracy）を見る限り $`r result$overall[1]`$ とあまり好ましいモデルとは言えません。  
+　評価の結果、正解率（Accuracy）を見る限り $`r result$overall[1]`$ とまずまずのモデルだと思われます。  
 
 　  
 
 ## パフォーマンスの改善
 　パフォーマンス改善を模索するために各フィーチャーをZスコア化してみます。ラベルデータはそのまま用います。
 ```{r}
-# Traning Data
-(df_train <- df %>% 
-  dplyr::select(-id) %>% 
+df_train <- df %>% 
+  dplyr::mutate(id = as.character(id)) %>% 
   dplyr::mutate_if(is.numeric, .funs = scale) %>% 
-  dplyr::slice(1:150))
+  dplyr::slice(1:150) %>% 
+  tibble::column_to_rownames(var = "id")
+df_train
 
-# Test Data
-(df_test <- df %>% 
-  dplyr::select(-id) %>% 
+df_test <- df %>% 
+  dplyr::mutate(id = as.character(id)) %>% 
   dplyr::mutate_if(is.numeric, .funs = scale) %>% 
-  dplyr::slice(151:200))
+  dplyr::slice(151:200) %>% 
+  tibble::column_to_rownames(var = "id")
+df_test
 ```
 
-Zスコア化したデータを用いてトレーニングを行ってみますが、大差はないようです。
-```{r}
-gmodels::CrossTable(x = class::knn(train = df_train, test = df_test,
-                                   cl = df_train_label, k = 14),
-                    y = df_test_label, dnn = c("Predict", "Actual"),
-                    prop.chisq = FALSE, prop.c = FALSE, prop.t = FALSE)
-```
-
-　  
-
-## Testing alternative values of k
-最適なk値を探すには`e1071::tune.knn`関数が便利です。各フィーチャーを正規化したデータを用いてk値の探索（推定）を行ってみます。
-```{r, include=FALSE}
-# Traning Data
-(df_train <- df %>% 
-  dplyr::select(-id) %>% 
-  dplyr::mutate_if(is.numeric, .funs = normalize) %>% 
-  dplyr::slice(1:150))
-```
-
-
-　  
-
-### Cross validation (CV)
-より厳密にk値を求めるのであれば交差検証（Cross Vailidation）を行うべきだと言われています。（勉強中）
-k値を最も簡単に探索（推定）するには`e1071::tune.knn`関数を用います。
+　正解率（Accuracy）が $`r result$overall[1]`$ と大差は出ませんでした。
 ```{r}
 set.seed(seed)
-e1071::tune.knn(x = df_train, y = df_train_label, k = 1:10) %>% 
-  summary()
+result <- class::knn(train = df_train, test = df_test, cl = df_train_label,
+                     k = 12) %>% 
+  caret::confusionMatrix(reference = df_test_label)
+result
+```
+
+　  
+
+## 最適な近傍数
+　では、近傍数（$k$）はいくつが最適なのでしょうか？交差検証（Cross Varidation）で確認してみます。
+```{r}
+set.seed(seed)
+result <- caret::train(x = df_train, y = df_train_label,
+                      method = "knn", tuneGrid = expand.grid(k = c(1:20)),
+                      trControl = caret::trainControl(method = "cv"))
+result
 ```
 
 ```{r}
-set.seed(seed)
-caret::train(x = df_train, y = df_train_label,
-             method = "knn", tuneGrid = expand.grid(k = c(1:10)),
-             trControl = caret::trainControl(method = "cv"))
+result %>% ggplot2::ggplot()
 ```
 
-　  
-
-# ケーススタディの矛盾点
-　テキストのケーススタディではラベルデータの扱いにおいて、いくつかの矛盾点があります。
-
-1. ラベルデータを正規化している
-1. ラベルの作成方法とモデリング結果が異なる
-
-　まず、「3.3 Normalizing Data」において最小最大正規化関数（`normalize`）を定義した後に以下のコードでラベルを除く変量を正規化しています。ラベルとして外しているのは $11$ 番目の 破壊行為（`vandalism`）変量です。
-```{r, eval=FALSE}
-boystown_n<-as.data.frame(lapply(boystown[-11], normalize))
-```
-　  
-　次に 「3.4 Data preparation - creating training and test datasets」において、$11$ 番目の破壊行為（`vandalism`）変量をラベルにしています。  
-　
-> Then let’s extract the labels or classes (column=11, Delinquency in terms of reoccurring vandalism) for our two subsets.
+　$k = `r result$bestTune$k`$ がベストパラメータとでました。  
 
 　  
-```{r, eval=FALSE}
-bt_train_labels<-boystown[1:150, 11]
-bt_test_labels<-boystown[151:200, 11]
-```
 
-　  
-　このようにラベルとして破壊行為（`vandalism`）を作成しているにも関わらず、「3.6 Step 4 - Evaluating model performance」においてラベルとして利用されているのは「3.2 Step 2: Exploring and preparing the data」で二値化した成績評価（`gpa`）です。「3.7 Step 5 - Improving model performance」以降でもラベルは二値化した成績評価（`gpa`）を用いていますので、「3.3」ならびに「3.4」のコードは不適切と考え、本ページではコードを修正しています。  
+<!-- # ケーススタディの矛盾点 -->
+<!-- 　テキストのケーススタディではラベルデータの扱いにおいて、いくつかの矛盾点があります。 -->
+
+<!-- 1. ラベルデータを正規化している -->
+<!-- 1. ラベルの作成方法とモデリング結果が異なる -->
+
+<!-- 　まず、「3.3 Normalizing Data」において最小最大正規化関数（`normalize`）を定義した後に以下のコードでラベルを除く変量を正規化しています。ラベルとして外しているのは $11$ 番目の 破壊行為（`vandalism`）変量です。 -->
+<!-- ```{r, eval=FALSE} -->
+<!-- boystown_n<-as.data.frame(lapply(boystown[-11], normalize)) -->
+<!-- ``` -->
+<!-- 　   -->
+<!-- 　次に 「3.4 Data preparation - creating training and test datasets」において、$11$ 番目の破壊行為（`vandalism`）変量をラベルにしています。   -->
+<!-- 　 -->
+<!-- > Then let’s extract the labels or classes (column=11, Delinquency in terms of reoccurring vandalism) for our two subsets. -->
+
+<!-- 　   -->
+<!-- ```{r, eval=FALSE} -->
+<!-- bt_train_labels<-boystown[1:150, 11] -->
+<!-- bt_test_labels<-boystown[151:200, 11] -->
+<!-- ``` -->
+
+<!-- 　   -->
+<!-- 　このようにラベルとして破壊行為（`vandalism`）を作成しているにも関わらず、「3.6 Step 4 - Evaluating model performance」においてラベルとして利用されているのは「3.2 Step 2: Exploring and preparing the data」で二値化した成績評価（`gpa`）です。「3.7 Step 5 - Improving model performance」以降でもラベルは二値化した成績評価（`gpa`）を用いていますので、「3.3」ならびに「3.4」のコードは不適切と考え、本ページではコードを修正しています。   -->
 
 　  
 
