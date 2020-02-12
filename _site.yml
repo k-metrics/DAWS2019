@@ -54,7 +54,7 @@ navbar:
       menu:
         - text: "はじめに"
         - text: "k近傍法"
-          href: cc_C01.html
+          href: cs_C01.html
   right:
     - icon: fa-github
       menu:

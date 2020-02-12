@@ -1,5 +1,5 @@
 ---
-title: "Case Study - knn"
+title: "Case Study - kNN"
 author-meta: "Sampo Suzuki"
 pagetitle: "DAWS2019"
 output: html_document
@@ -10,19 +10,24 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
 
 htmltools::tagList(rmarkdown::html_dependency_font_awesome())
 
+require(caret)
 require(tidyverse)
 
-seed <- 300
+seed <- 212
 RNGversion("3.5.3")
 ```
 
-　$k$ 近傍法は多変量のデータを分類するのに向いているアルゴリズムですので、様々な使い道が考えられます。本ページはそれらをまとめています。  
+　$k$ 近傍法（kNN）は多変量のデータを分類するのに向いているアルゴリズムです。医学・看護分野以外でも様々な使い道が考えられます。例えば、ソフトウェアのプロダクトメトリクスは典型的な多変量データでありバグが出るプロダクトのメトリクスは何らかの傾向があるかも知れません。  
+　一方で $k$ 近傍法は分類結果や過程が見えにくいため理解を補助するために可視化できると便利かも知れません。  
+　  
+　本ページでは以下のケーススタディを扱っています。  
 
-
-1. プロダクトメトリクスを用いた欠陥予測（vs ロジスティック回帰分析）に関するケーススタディ [<i class="fa fa-external-link-square"></i>](#s02) 
-1. 分類結果を可視化して確認するケーススタディ [<i class="fa fa-external-link-square"></i>](#s03) 
-1. kの値を変化させた場合の分類境界を可視化して確認するケーススタディ [<i class="fa fa-external-link-square"></i>](#s04) 
-分類仮定の可視化
+ケーススタディ　                     | 概要
+-------------------------------------|------------------------------------------
+プロダクトメトリクスを用いた欠陥予測 | 『データ指向のソフトウェアマネジメント』より
+分類結果の可視化                     | `ggplot2` パッケージによる可視化
+分類境界の可視化                     | 道場
+分類過程の可視化                     | `iBreakDown` パッケージによる可視化
 
 　  
 
@@ -39,134 +44,84 @@ tidyverse    | `r packageVersion('tidyverse')` | Easily Install and Load the 'Ti
 
 　  
 
-
-利用しているデータセットは各セクションで確認してください。  
-　  
-
-
-# 欠陥が生じやすいモジュールを予測する {#s02}
-[『データ指向のソフトウェア品質マネジメント』 <i class="fa fa-external-link"></i>](http://www.juse-p.co.jp/cgi-bin/html.pl5?i=ISBN978-4-8171-9447-3){target="_blank" title=""} （通称デート本）の第4.3節にある「欠陥が生じやすいモジュールの予測」のデータを用いてk近傍法による欠陥予測をしてみます。ちなみにデート本ではロジスティック回帰分析によるモデルを構築しています。なお、利用するデータはデート本の案内を参考にダウンロードしてください。  
+# プロダクトメトリクスを用いた欠陥予測
+　[『データ指向のソフトウェア品質マネジメント』 <i class="fa fa-external-link"></i>](http://www.juse-p.co.jp/cgi-bin/html.pl5?i=ISBN978-4-8171-9447-3){target="_blank" title="SQiP"} （通称デート本）の第4.3節「欠陥修正が生じやすいモジュールの予測」ではロジスティクス回帰分析による予測モデルを構築しています。ただ、LCOM（凝集度の欠如）の値によっては正解率が低くモデルの改善が望まれます。  
+　そこで、$k$ 近傍法を用いたモデルを構築してみます。利用しているデータは『データ指向のソフトウェア品質マネジメント』の附録データですので書籍を参照の上で入手してください。  
 
 　  
 
-## 因子化と正規化
-予測を行う前にで欠陥の有無を表す`Modify`（修正有無）のデータを因子化（ラベル化）し、各数値を正規化しておきます。各変量とも右に歪んだ分布なので、ここでは最小最大正規化を行います。
+## データの正規化
+　対象となるデータは以下のようなデータです。各変量が何を意味するかは書籍で確認してください。
 ```{r, echo=FALSE}
-normalize <- function(x = NULL) {
-  if (!is.null(x)) {
-    return((x - min(x)) / diff(range(x)))
-    # return(scale(x))
-  } else {
-    return(NA)
-  }
-}
-
-x <- "./data/dsqm/4-3-data.xls" %>% 
+x <- "./data/SQiP/4-3-data.xls" %>% 
   readxl::read_xls(sheet = 1) %>% 
-  dplyr::mutate(Modify = as.logical(Modify)) %>% 
-  dplyr::mutate_if(is.numeric, normalize)
+  dplyr::mutate(Modify = as.logical(Modify))
 x
+```
 
-seed <- 1438
+　  
+　$Z$ スコア正規化を行います。
+```{r}
+x <- x %>% 
+  dplyr::mutate_if(is.numeric, .funs = scale)
 ```
 
 　  
 
 ## データの作成
-トレーニングデータとテストデータを作成します。対象となるデータのインスタンス数が`r length(x$Modify)`ですので、その内、ランダムに選択した$75\%$インスタンスをトレーニングデータとし、残りをテストデータとします。  
-
-　  
-
-### トレーニングデータ
+　トレーニング用とテスト用のデータを作成します。対象となるデータのインスタンス数が `r length(x$Modify)` ですので、ランダムに選択した$75\%$インスタンスをトレーニング用、残りをテスト用とします。  
 ```{r, message=FALSE}
-(train <- x %>% 
-  dplyr::sample_frac(size = 0.75))
-```
+set.seed(seed)
+split <- x %>% 
+  rsample::initial_split(prop = 3/4)
 
-　  
+train <- split %>% 
+  rsample::training() %>% 
+  dplyr::mutate(Modify = as.factor(Modify))
+train
 
-### テストデータ（予測対象）
-```{r, message=FALSE}
-(test <- train %>% 
-  dplyr::anti_join(x, .))
+test <- split %>% 
+  rsample::testing() %>% 
+  dplyr::mutate(Modify = as.factor(Modify))
+test
 ```
 
 　  
 
 ## トレーニングと予測
-準備したトレーニングデータとテストデータを用いて予測してみます。ここではk値をトレーニングデータの数の平方根（`r as.integer(sqrt(nrow(train)))`）としています。
-```{r}
-k <- as.integer(sqrt(nrow(train)))
-(knn_model <- class::knn(train = train[, -6], test = test[, -6],
-                         cl = train$Modify, k = k)) %>% 
-  gmodels::CrossTable(x = ., y = test$Modify, dnn = c("Predict", "Actual"),
-                      prop.chisq = FALSE, prop.r = TRUE, prop.t = FALSE)
-```
-
-なお、`TRUE`がリリース後に欠陥修正あり（バグありで出荷）であることに注意してください。
-
-```{r}
-data.frame(predict = as.vector(knn_model),
-           actual = as.vector(test$Modify)) %>% 
-  dplyr::mutate(predict = as.logical(predict),
-                notmatch = xor(predict, actual))
-```
-
-　  
-
-## 交差検証（e1071パケージ）
-k値を1～30の範囲で`e1071`パッケージを使って交差検証してみると最適値は以下になります。
+　準備したトレーニング用とテスト用のインスタンスを用いて交差検証で求めた近傍数 $k$ を用いた分類（予測）を行いモデルを評価します。
 ```{r}
 set.seed(seed)
-k <- e1071::tune.knn(x = train[, -6], y = train[, 6], k = c(1:30))
-k %>% 
-  summary()
-```
-
-```{r}
-set.seed(seed)
-(knn_model <- class::knn(train = train[, -6], test = test[, -6],
-                         cl = train$Modify, k = k$best.parameters)) %>% 
-  gmodels::CrossTable(x = ., y = test$Modify, dnn = c("Predict", "Actual"),
-                      prop.chisq = FALSE, prop.r = TRUE, prop.t = FALSE)
-```
-
-```{r}
-data.frame(predict = as.vector(knn_model),
-           actual = as.vector(test$Modify)) %>% 
-  dplyr::mutate(predict = as.logical(predict),
-                notmatch = xor(predict, actual))
-```
-
-　  
-
-## 交差検証（caretパッケージ）
-次にk値を同様の範囲で`caret`パッケージを使って交差検証してみます。
-```{r}
-set.seed(seed)
-(knnfit <- caret::train(x[, -6], as.factor(as.integer(x$Modify)),
-             method = "knn", tuneGrid = expand.grid(k = c(1:30)),
-             trControl = caret::trainControl(method = "cv")))
-
+knnfit <- caret::train(x = x[, -6], y = as.factor(x$Modify),
+                       method = "knn", tuneGrid = expand.grid(k = c(1:15)),
+                       trControl = caret::trainControl(method = "cv"))
+knnfit
 knnfit %>% 
   ggplot2::ggplot()
 ```
 
 ```{r}
-class::knn(train = train[, -6], test = test[, -6],
-           cl = train$Modify, k = 3) %>% 
-  gmodels::CrossTable(x = ., y = test$Modify, dnn = c("Predict", "Actual"),
-                      prop.chisq = FALSE, prop.r = TRUE, prop.t = FALSE)
+result <- class::knn(train = train[, -6], test = test[, -6],
+                     cl = train$Modify, k = knnfit$bestTune$k) %>% 
+  caret::confusionMatrix(reference = test$Modify, positive = "TRUE")
+result
 ```
 
 　  
 
 ## まとめ
-デート本のロジスティック回帰分析での適合率^1^は$LCOM \gt 0$である場合は約$83\%$で、$LCOM = 0$の場合は約$55\%$でした。一方、k近傍法では$LCOM$を条件分けすることなく約$82\%$でした。ただし、バグがないと予測したにもかかわらずバグであるというものが出ていますので、k近傍法の予測結果だけで判断するとバグを流出させる可能性があります。また、k値をいくつに設定すべきなのかは難しいところがあります。ラベルが二種の場合にはタイがでない奇数をkの値にする方が好ましいので交差検証の際も奇数だけを指定してみるのも手かもしれません。  
+　ロジスティック回帰分析モデルと $k$ 近傍法の性能を比較してみると華表のように $k$ 近傍法の方が LCOM の値にかかわらず精度の高い分類（予測）をしていることが分かります。  
+　  
 
-k近傍法は手間がかからずに相応の予測（分類）ができることを考えると判断材料の一つとして採用しても良いのではないかと考えます。  
+モデル                         | 再現率  | 適合率  | 正解率  | 備考
+-------------------------------|---------|---------|---------|---------
+ロジスティクス回帰（LCOM > 0） | $0.833$ | $0.854$ | $0.755$ | 
+ロジスティクス回帰（LCOM = 0） | $0.333$ | $0.556$ | NA      | 
+$k$ 近傍法（$Z$ スコア正規化） | $0.706$ | $1.000$ | $0.800$ | $k = 3$
 
-^1^ 適合率：デート本ではバグありと予測されたモジュールの内、実際にバグのあった割合を適合率と呼んでいます。クロス集計表では"Predict(TRUE)/Actual(TRUE)"の上段の割合が適合率です。
+　  
+　書籍での結論は `LCOM > 0` を予測対象にするとなっていますが、$k$ 近傍法では特段の区分けなく予測ができそうです。ただし、修正がないと予想したにもかかわらず修正があった偽陰性が出ていますのでこの予測結果だけに基づいた判断には厳しいものがありそうです。  
+　しかし、$k$ 近傍法は手間がかからずに相応の予測（分類）ができることを考えると判断材料の一つとして採用しても良いのではないかと考えます。  
 
 　  
 
