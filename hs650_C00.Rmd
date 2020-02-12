@@ -1,0 +1,26 @@
+---
+title: "University of Michigan: HS650"
+author-meta: "Sampo Suzuki"
+pagetitle: "DAWS2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+
+htmltools::tagList(rmarkdown::html_dependency_font_awesome())
+
+require(tidyverse)
+RNGversion("3.5.3")
+```
+
+　[Data Science and Predictive Analytics (UMich HS650) <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/DSPA_Courses.html){target="_blank" title="SOCR, Univrecity of Michigan"} （以降、HS650）はミシガン大学の School of Nursing が SORC（Statistics Online Computational Resource） プロジェクトの一環で無償で公開しているオンライン学習コース（MOOCs）です。通常の講義としても開催されています。  
+　  
+
+## Topics Covered
+　HS650 が　[カバーしているトピック <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/courses/DSPA_Topics.html){target="_blank" title="SOCR, Univrecity of Michigan"} は『MLwR 2nd』とほぼ同等で遅延学習から深層学習までカバーしています。アルゴリズム解説だけでなく R を利用するケーススタディも用意されています。ただし、ナーシングスクールのコースですのでケーススタディで扱われるデータは医療系のデータが中心となっていますが『MLwR 2nd』の復習用に向いていると思います。  
+
+　  
+
+---
+<center> [CC BY-NC-SA 4.0 <i class="fa fa-external-link"></i>](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ja), Sampo Suzuki [`r format(Sys.time(), format = '%F(%Z)')`] </center>

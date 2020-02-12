@@ -16,25 +16,15 @@ seed <- 300
 RNGversion("3.5.3")
 ```
 
-　[Data Science and Predictive Analytics (UMich HS650) <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/courses/DSPA_Topics.html){target="_blank" title="SOCR, Univrecity of Michigan"} コースの第6章 [Lazy Learning - Classification Using Nearest Neighbors <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/courses/DSPA_notes/06_LazyLearning_kNN.html){target="_blank" title="UMich HS650"} のケーススタディです。
-　本ケーススタディでは学生の飲酒や家庭環境などと学業成績がどのような関係にあるかを分類するものです。データは [3 Case Study <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/courses/DSPA_notes/06_LazyLearning_kNN.html#3_case_study){target="_blank" title="Lazy Learning - Classification Using Nearest Neighbors"} から入手してください。
+　  
+　HS650 第6章 [Lazy Learning - Classification Using Nearest Neighbors <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/courses/DSPA_notes/06_LazyLearning_kNN.html){target="_blank" title="UMich HS650"} （以降、テキスト）では遅延学習を扱っています。ケーススタディでは若者の発育に関するものです。データは全て **シミュレーションにより作成されたデータ** が用いられています。データは上記のリンク先から入手してください。  
+　ケーススタディにはコードの説明とモデリング評価に矛盾が見受けられますので、その部分を修正して解いています。そのため結果が異なっている点に注意してください。
 
+　  
 
-
-# Packages and Datasets
-本ページでは以下の追加パッケージを用いています。
-
-Package      | Descriptions
--------------|----------------------------------------------------
-class        | Functions for Classification
-gmodels      | Various R Programming Tools for Model Fitting
-caret        | Classification and Regression Training
-e1071        | Misc Functions of the Department of Statistics, Probability Theory Group (Formerly: E1071), TU Wien
-FNN          | Fast Nearest Neighbor Search Algorithms and Applications
-iBreakDown   | Model Agnostic Instance Level Variable Attributions
-kknn         | Weighted k-Nearest Neighbors
-skimr        | Compact and Flexible Summaries of Data
-tidyverse    | Easily Install and Load the 'Tidyverse'
+## Packages and Datasets
+　本ページでは以下の追加パッケージを用いています。  
+　  
 
 Package      | Version   | Descriptions
 -------------|-----------|---------------------------------------------------
@@ -45,31 +35,30 @@ skimr        | `r packageVersion('skimr')` | Compact and Flexible Summaries of D
 tidymodels   | `r packageVersion('tidymodels')` | Easily Install and Load the 'Tidymodels' Packages
 tidyverse    | `r packageVersion('tidyverse')` | Easily Install and Load the 'Tidyverse'
 
-
-
-利用しているデータセットは各セクションで確認してください。  
 　  
 
+# ケーススタディ
+　データファイルは以下のファイルが提供されています。区切り文字が異なりますのでカンマ区切りのファイルを利用することをおすゝめします。  
 
-# DSPA HS650, University of Michigan {#s01}
-[Data Science and Predictive Analytics (UMich HS650) <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/DSPA_Courses.html){target="_blank" title="School of Nursing, University of Michigan"} のケーススタディです。本ケーススタディでは学生の飲酒や家庭環境などと学業成績がどのような関係にあるかを分類するものです。データなどは [3 Case Study <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/courses/DSPA_notes/06_LazyLearning_kNN.html#3_case_study){target="_blank" title="Lazy Learning - Classification Using Nearest Neighbors"} から入手することが可能です。
+　  
+ファイル名                       | 区切り          | 備考
+---------------------------------|-----------------|----------------------------
+CaseStudy02_Boystown_Data.csv    | スペース区切り  | `read.csv` 関数で読みこみ可
+CaseStudy02_Boystown_Data_V2.csv | カンマ区切り    | 
 
 　  
 
-## Collecting Data
-データはCSVファイルで提供されていますが、**区切り文字が**カンマでなく**空白**ですので`read.csv`関数を用いるのが無難です。
-```{r}
-(x <- "./data/UMich/CaseStudy02_Boystown_Data.csv" %>% 
-  read.csv(sep = " "))
+```{r, echo=FALSE}
+x <- "./data/UMichi/CaseStudy02_Boystown_Data_V2.csv" %>% 
+  read.csv()
 ```
 
-データは全て数値データですが`id`は単なる識別番号なのでトレーニング（学習）やテスト（分類）には利用しませんので外しておきます。
+　データは全て数値データですが`id`は単なる識別番号なのでトレーニング（学習）やテスト（分類）には利用しませんので外す必要があります（`rowname` としても構いません）。なお、データフレーム型変数 `x` にデータファイルを読み込んであるものとしています。
 ```{r}
-x %>% 
-  skimr::skim_to_wide()
+skimr::skim(x)
 ```
 
-実際にはアンケートで取得したデータのようで各値は離散値になっています。  
+　各変量(フィーチャー）は以下のような内容になっています。詳細はデータファイルと共に提供されている Word のファイル（CaseStudy02_Boystown_V2.docx）を参照してください。
 
 feature    | 内容                       | 取りうる値
 -----------|----------------------------|----------------------------
@@ -86,80 +75,97 @@ larceny    | $50以上の窃盗行為          | 0: never, ... 4: many times
 vandalism  | 破壊行為                   | 0: never, ... 4: many times
 
 　  
+　`id` を除く各変量は離散値（名義尺度または順序尺度）になっていますので、ダミーコーディングなどを利用して変換する必要がありそうです。ラベルとなるのは成績評価（`gpa`）です。
 
-## Exploring and preparing the data
-性別と親の就業状況を0/1に変換します。
+　  
+
+## データの変換
+　性別と親の就業状況が `1/2` データですので `0/1` データに変換しておきます。就業状況は未就業の場合に `0` とするため少しややこしい計算をしています。
 ```{r}
-(df <- x %>% 
-  dplyr::mutate(sex = sex - 1L,                 # 0: male, 1: female
+df <- x %>% 
+  dplyr::mutate(sex = sex - 1L,                 # 0: male,  1: female
                 dadjob = -1L * (dadjob - 2L),   # 0: nojob, 1: has job
-                momjob = -1L * (momjob - 2L)))  # 0: nojob, 1: has job
+                momjob = -1L * (momjob - 2L))   # 0: nojob, 1: has job
+df
 ```
 
 　  
 
-## Normalizing Data and Data preparation
-まず、各フィーチャーの最小値が0、最大値が1となるような正規化関数を定義します。これは第三章の実例と同じ考え方に基づくものです。
+## データの正規化
+　次に性別と就業状況を除く各変量に対して最小最大正規化を行います。『MLwR 2nd』の第3章と異なるのは欠損値対策などを入れている点です。  
 ```{r}
 normalize <- function(x = NULL) {
   if (!is.null(x)) {
-    return((x - min(x)) / diff(range(x)))
+    return((x - min(x, na.rm = TRUE)) / diff(range(x, na.rm = TRUE)))
   } else {
     return(NA)
   }
 }
 ```
 
-次に定義した正規化関数を用いて対象データセットの各フィーチャーを正規化しトレーニングデータとテストデータを作成します。ただし、`id`は前述のように単なる識別情報でトレーニングには不要ですので外しておきます。
+　  
+　では、定義した正規化関数を用いて対象データセットの各変量を正規化しトレーニング用とテスト用のインスタンスとラベルを作成します。なお、前述のように `id` は単なる識別情報でトレーニングには不要ですので `rowname` に変換しておきます。
+　また、成績評価の平均（`gpa`）はラベルに利用しますので外しておきます。  
+　データの分割は単純に先頭の $150$ インスタンスをトレーニング用、残りの $50$ インスタンスをテスト用としています。
 ```{r}
-# Traning Data
-(df_train <- df %>% 
-  dplyr::select(-id) %>% 
+df_train <- df %>% 
+  dplyr::select(-gpa) %>% 
+  dplyr::mutate(id = as.character(id)) %>% 
   dplyr::mutate_if(is.numeric, .funs = normalize) %>% 
-  dplyr::slice(1:150))
+  dplyr::slice(1:150) %>% 
+  tibble::column_to_rownames(var = "id")
+df_train
 
-# Test Data
-(df_test <- df %>% 
-  dplyr::select(-id) %>% 
+df_test <- df %>% 
+  dplyr::select(-gpa) %>% 
+  dplyr::mutate(id = as.character(id)) %>% 
   dplyr::mutate_if(is.numeric, .funs = normalize) %>% 
-  dplyr::slice(151:200))
+  dplyr::slice(151:200) %>% 
+  tibble::column_to_rownames(var = "id")
+df_test
 ```
 
+　  
 
-成績での分類を行いますので成績評価である`gpa`を(A, B, C)と(D, E, F)の二分割になるようにしてラベルデータを作成します。
+## ラベルの作成
+　前述のように成績評価（`gpa`）をラベルとします。今回は「成績上位（above = A, B, C）」と「成績下位（below = D, E, F）」に二分割します。
 ```{r}
-# Traning Data Label
-(df_train_label <- df %>% 
+df_train_label <- df %>% 
   dplyr::select(gpa) %>% 
   dplyr::slice(1:150) %>% 
-  dplyr::mutate(grade = gpa %in% c(3, 4, 5) %>% as.factor() %>%
-                  forcats::fct_recode(below = "TRUE", above = "FALSE")) %>% 
-  .$grade)
+  dplyr::mutate(grade = gpa %in% c(3, 4, 5) %>% 
+                  as.factor() %>%
+                  forcats::fct_recode(`成績下位` = "TRUE", `成績上位` = "FALSE")) %>% 
+  .$grade
+df_train_label
 
-# Test Data Label
-(df_test_label <- df %>% 
+df_test_label <- df %>% 
   dplyr::select(gpa) %>% 
   dplyr::slice(151:200) %>% 
-  dplyr::mutate(grade = gpa %in% c(3, 4, 5) %>% as.factor() %>%
-                  forcats::fct_recode(below = "TRUE", above = "FALSE")) %>% 
-  .$grade)
+  dplyr::mutate(grade = gpa %in% c(3, 4, 5) %>% 
+                  as.factor() %>%
+                  forcats::fct_recode(`成績下位` = "TRUE", `成績上位` = "FALSE")) %>% 
+  .$grade
+df_test_label
 ```
 
-　  
 
-## Training a model on the data and Evaluating model performance
-`class::knn`関数を用いてトレーニングを行い、その結果を評価します。なお、k値はインスタンス数の平方根（`r sqrt(200)`）に最も近い整数を用います。
+
+## モデルの作成と評価
+　`class::knn`関数を用いてトレーニングを行い、その結果をクロス集計により評価します。なお、近傍数 $k$ はトレーニング用インスタンス数の平方根（`r sqrt(150)`）に最も近い整数とします。
 ```{r}
-gmodels::CrossTable(x = class::knn(train = df_train, test = df_test,
-                                   cl = df_train_label, k = 14),
-                    y = df_test_label, dnn = c("Predict", "Actual"),
-                    prop.chisq = FALSE, prop.c = FALSE, prop.t = FALSE)
+result <- class::knn(train = df_train, test = df_test, cl = df_train_label,
+                     k = 12) %>% 
+  caret::confusionMatrix(reference = df_test_label)
+result
 ```
+
+　評価の結果、正解率（Accuracy）を見る限り $`r result$overall[1]`$ とあまり好ましいモデルとは言えません。  
 
 　  
 
-## Improving model performance
-パフォーマンス改善を模索するために各フィーチャーをZスコア化してみます。ラベルデータはそのまま用います。
+## パフォーマンスの改善
+　パフォーマンス改善を模索するために各フィーチャーをZスコア化してみます。ラベルデータはそのまま用います。
 ```{r}
 # Traning Data
 (df_train <- df %>% 
@@ -215,37 +221,31 @@ caret::train(x = df_train, y = df_train_label,
 
 　  
 
-## 本Case Studyに対する疑問
-本Case Studyでは、GPAを元にした成績評価（above or below）の分類を行うためにGPAの値もトレーニング、テストに用いているが、これはいかがなものであろうか？  
-試しにGPAを除いてトレーニングしてみると大きく異なる値になることが分かる。
-```{r, include=FALSE}
-# Traning Data
-(df_train <- df %>% 
-  dplyr::select(-id, -gpa) %>% 
-  dplyr::mutate_if(is.numeric, .funs = normalize) %>% 
-  dplyr::slice(1:150))
+# ケーススタディの矛盾点
+　テキストのケーススタディではラベルデータの扱いにおいて、いくつかの矛盾点があります。
 
-# Test Data
-(df_test <- df %>% 
-  dplyr::select(-id, -gpa) %>% 
-  dplyr::mutate_if(is.numeric, .funs = normalize) %>% 
-  dplyr::slice(151:200))
+1. ラベルデータを正規化している
+1. ラベルの作成方法とモデリング結果が異なる
+
+　まず、「3.3 Normalizing Data」において最小最大正規化関数（`normalize`）を定義した後に以下のコードでラベルを除く変量を正規化しています。ラベルとして外しているのは $11$ 番目の 破壊行為（`vandalism`）変量です。
+```{r, eval=FALSE}
+boystown_n<-as.data.frame(lapply(boystown[-11], normalize))
 ```
+　  
+　次に 「3.4 Data preparation - creating training and test datasets」において、$11$ 番目の破壊行為（`vandalism`）変量をラベルにしています。  
+　
+> Then let’s extract the labels or classes (column=11, Delinquency in terms of reoccurring vandalism) for our two subsets.
 
-```{r}
-set.seed(seed)
-gmodels::CrossTable(x = class::knn(train = df_train, test = df_test,
-                                   cl = df_train_label, k = 14),
-                    y = df_test_label, dnn = c("Predict", "Actual"),
-                    prop.chisq = FALSE, prop.c = FALSE, prop.t = FALSE)
-
-set.seed(seed)
-e1071::tune.knn(x = df_train, y = df_train_label, k = 1:30) %>% 
-  summary()
+　  
+```{r, eval=FALSE}
+bt_train_labels<-boystown[1:150, 11]
+bt_test_labels<-boystown[151:200, 11]
 ```
 
 　  
+　このようにラベルとして破壊行為（`vandalism`）を作成しているにも関わらず、「3.6 Step 4 - Evaluating model performance」においてラベルとして利用されているのは「3.2 Step 2: Exploring and preparing the data」で二値化した成績評価（`gpa`）です。「3.7 Step 5 - Improving model performance」以降でもラベルは二値化した成績評価（`gpa`）を用いていますので、「3.3」ならびに「3.4」のコードは不適切と考え、本ページではコードを修正しています。  
 
+　  
 
 # 参考資料
 * [Lazy Learning - Classification Using Nearest Neighbors <i class="fa fa-external-link"></i>](http://www.socr.umich.edu/people/dinov/courses/DSPA_notes/06_LazyLearning_kNN.html){target="_blank" title="University of Michigan: Data Science and Predictive Analytics (UMich HS650)"} 

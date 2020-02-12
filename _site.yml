@@ -20,7 +20,7 @@ navbar:
   type: default
   left: 
     - text: "Rによる機械学習"
-      icon: fa-laptop
+      icon: fa-book
       menu:
         - text: "はじめに"
           href: mlwr_C00.html
@@ -35,9 +35,10 @@ navbar:
         - text: "第10章 モデルの性能の評価"
         - text: "第11章 モデルの性能の改善"
     - text: "UMich HS650"
-      icon: fa-info-circle
+      icon: fa-university
       menu:
         - text: "Introduction"
+          href: hs650_C00.html
         - text: "VI. Lazy Learning"
           href: hs650_C06.html
         - text: "Probabilistic Learning"
@@ -48,6 +49,10 @@ navbar:
         - text: "k-Means Clustering"
         - text: "Evaluating Model Performance"
         - text: "Improving Model Performance"
+    - text: "Case Study"
+      icon: fa-info-circle
+      menu:
+        - text: "k近傍法"
   right:
     - icon: fa-github
       menu:
