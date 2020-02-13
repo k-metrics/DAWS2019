@@ -19,3 +19,7 @@ h4 {
 h1:first-letter {
   font-size: 1.25em;
 } */
+
+code {
+  font-weight: bolder;
+}
